@@ -46,7 +46,7 @@ These constraints bind `architect`, `api-designer`, and `database-designer`: API
 - [x] UI (N/A — no dedicated UI, see docs/ui/memory-module.md) — frontend-developer — `docs/ui/memory-module.md`
 - [x] Implementation (backend) — backend-developer — `.claude/skills/remember/`, `.claude/skills/recall/`, `backend/memory-module/`
 - [x] Implementation (frontend) (N/A — no UI to implement) — frontend-developer — `frontend/memory-module/` (no subfolder)
-- [ ] Tests — test-engineer — `docs/tests/memory-module.md`
+- [x] Tests — test-engineer — `docs/tests/memory-module.md`
 - [ ] Review — reviewer — `docs/reviews/memory-module.md`
 - [ ] Documentation — technical-writer — `docs/features/memory-module.md`
 
