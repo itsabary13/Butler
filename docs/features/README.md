@@ -5,3 +5,4 @@ Index of shipped features, maintained by `/technical-writer`. Each row links to 
 | Feature | Epic | Doc |
 |---|---|---|
 | Memory (save, recall, Private/Work tagging) | memory-module | [memory-module.md](memory-module.md) |
+| Documents (store and find real files) | document-module | [document-module.md](document-module.md) |

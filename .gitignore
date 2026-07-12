@@ -3,6 +3,9 @@
 # Personal memory data (not project scaffolding) — see backend/memory-module/README.md
 backend/memory-module/wiki/
 
+# Personal documents (not project scaffolding) — see backend/document-module/README.md
+backend/document-module/files/
+
 # OS
 Thumbs.db
 Desktop.ini
