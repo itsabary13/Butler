@@ -14,7 +14,7 @@ Implements the Memory Writer component of the Memory module (`docs/architecture/
 
 ## Steps
 
-1. **Identify the topic.** Decide what concept/topic the new information belongs to, and derive a candidate `title`/`slug` (kebab-case of the title).
+1. **Identify the topic.** Decide what concept/topic the new information belongs to, and derive a candidate `title`/`slug` (kebab-case of the title, restricted to `[a-z0-9-]` — transliterate to ASCII first if the title has non-Latin characters; `title`/`content` always keep the original text unchanged, only the slug/filename is transliterated).
 2. **Check for an existing related page.** List the files under `backend/memory-module/wiki/` and read titles/content of any that plausibly relate to the new information's topic — do not assume there's no match without checking.
 3. **Merge or create:**
    - **If a related page exists**: append the new information as a new paragraph (or subsection) to that page's `content`, and set `updated_at` to now. Do not overwrite existing content. If the new information also relates to a second existing page, add a bidirectional `[[slug]]` link between the merged-into page and that second page (write the link in both files' content).

@@ -11,6 +11,7 @@
 - One file per `WikiPage`, one page per topic/concept — never one file per raw save (a save either creates a new page or merges into an existing one, per the save-memory story).
 - Filename: `<slug>.md`, where `slug` is the kebab-case of the page's `title` (e.g. title "Home Address" -> `home-address.md`).
 - Slugs must be unique (domain invariant). On collision with an unrelated page that happens to produce the same slug, disambiguate by appending a short qualifier before slugifying (e.g. "Home Address (Boston)" -> `home-address-boston.md`) rather than a numeric suffix, so the filename stays meaningful on its own.
+- Slugs must be restricted to `[a-z0-9-]` (closes the sanitization gap flagged in `docs/reviews/memory-module.md`). If `title` contains characters outside that set (non-Latin script, punctuation, etc.), transliterate to ASCII for the slug/filename only — `title` and `content` keep the original text unchanged. Strip any transliteration result down to `[a-z0-9-]`, collapsing repeated `-`.
 
 ## File format
 
