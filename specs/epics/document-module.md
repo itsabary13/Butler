@@ -1,6 +1,6 @@
 # Epic: Document Module
 
-**Status: Shipped** (v1 — see `docs/features/document-module.md`)
+**Status: Shipped** (v1 + v1.1 (Google Drive source) + v1.2 (backup repo) — see `docs/features/document-module.md`)
 
 ## Idea
 
@@ -19,6 +19,14 @@ OUT OF SCOPE for v1 (explicitly deferred):
 - Full-text search/indexing/OCR inside document contents — retrieval works by Claude reading metadata (and the file itself, for text-readable formats) at query time, not a pre-built index.
 - Cross-linking a document to a specific Memory wiki page — the two modules stay independent for v1.
 
+## v1.1 — Add from Google Drive (fast-path increment)
+
+`add-document` can now also source a file from the user's Google Drive, not just a local path — same storage/metadata model, just a second acquisition step (download via Drive's API, decode, write bytes directly — never round-tripped through the model's text tools, same rule as the local-copy path). Google-native files (Docs/Sheets/Slides) are exported as PDF by default. No new component, no new entity.
+
+## v1.2 — Backup repo (fast-path increment)
+
+`backend/document-module/files/` is now its own independent git repo, backed up to a separate private GitHub repo (`backend/document-module/README.md` has the URL), same pattern as Memory's `butler-memory` backup. Closes the durability gap flagged when this epic first shipped. Unlike Memory's `remember`, `add-document` doesn't auto-push after every add yet — pushes are manual for now.
+
 ## Fixed constraints for v1
 
 - **No server process** — same constraint as Memory. Everything happens locally through Claude Code reading/writing files directly.
@@ -33,7 +41,7 @@ OUT OF SCOPE for v1 (explicitly deferred):
 - [x] API Design (N/A — no server, see docs/architecture/document-module.md) — api-designer — `docs/api/document-module.md`
 - [x] Database Design (file + metadata layout, not a database) — database-designer — `docs/db/document-module.md`
 - [x] UI (N/A — no dedicated UI, see docs/ui/document-module.md) — frontend-developer — `docs/ui/document-module.md`
-- [x] Implementation (backend) — backend-developer — `.claude/skills/add-document/`, `.claude/skills/find-document/`, `backend/document-module/`
+- [x] Implementation (backend) — backend-developer — `.claude/skills/add-document/`, `.claude/skills/find-document/`, `backend/document-module/` (v1.1: Google Drive as a second source)
 - [x] Implementation (frontend) (N/A — no UI to implement) — frontend-developer — `frontend/document-module/` (no subfolder)
 - [x] Tests — test-engineer — `docs/tests/document-module.md` (5/5 tests, incl. add+retrieve smoke test)
 - [x] Review — reviewer — `docs/reviews/document-module.md` (PASS; 1 high finding fixed during review, 1 medium follow-up recommendation)

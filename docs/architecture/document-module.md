@@ -6,7 +6,7 @@ Memory (`docs/architecture/memory-module.md`) stores short text facts as a wiki 
 
 ## Module boundaries
 
-1. **Document Writer** — implements the Add story (`specs/stories/document-module/add-document.md`).
+1. **Document Writer** — implements the Add story (`specs/stories/document-module/add-document.md`). Sources a file from either a local path or the user's Google Drive (v1.1 addition) — both converge on the same exact-bytes-to-disk write, just a different acquisition step.
 2. **Document Retriever** — implements the Retrieve story (`specs/stories/document-module/retrieve-document.md`).
 3. **Document Store** — the shared storage both components read/write (see Domain Model / Database Design for its structure).
 
@@ -45,7 +45,7 @@ Proposed physical location: `backend/document-module/files/` (default-only — `
 ## Non-functional constraints
 
 - **Privacy**: same class of concern as Memory — documents can contain personal/sensitive content. `database-designer`/`reviewer` should confirm the store is gitignored from the main repo, same treatment as `backend/memory-module/wiki/`.
-- **Durability**: same gap Memory had before v1.2 — a gitignored local-only store isn't backed up. Recommend the same fix (a separate private backup repo) once this ships, rather than solving it preemptively before real files exist to back up.
+- **Durability**: resolved (v1.2) the same way as Memory — `files/` is its own git repo, pushed to a separate private GitHub repo (`backend/document-module/README.md` has the URL). Unlike `remember`, `add-document` doesn't auto-push after every add yet; pushes are manual until/unless that's requested too.
 - **Storage size**: unlike Memory's small text pages, real files (PDFs, images) can be large. A private git repo backup (if adopted, per the durability note) may not be the ideal fit for very large or many files long-term — flagging as a known limitation, not solving now, since v1 has no size constraint from the user.
 - **Content readability**: Claude can only meaningfully summarize/answer questions about formats it can read directly (e.g. PDF, plain text) — opaque formats are stored and locatable but not searchable by content in v1 (see `retrieve-document.md`'s edge case).
 

@@ -9,4 +9,6 @@ This directory holds only the runtime data they operate on:
 
 - `files/` — each document's original file plus a `.md` metadata sidecar (`docs/db/document-module.md` defines the layout). Created on first add; not pre-populated. Gitignored from the main Butler repo — see root `.gitignore` — since stored documents are personal data, not project scaffolding.
 
-  Not yet backed up to a separate private repo the way `backend/memory-module/wiki/` is (see its README) — the architecture doc flags this as a known gap to close once real documents exist, rather than solving preemptively.
+  It's its own independent git repository (nested but invisible to Butler's git, since the whole `files/` path is gitignored), backed up to a **separate private** GitHub repo: `https://github.com/itsabary13/butler-documents`. Restore on a new machine by cloning that repo's contents into `files/`. It is never pushed to or exposed via the public-facing Butler repo, same treatment as `backend/memory-module/wiki/`.
+
+  Unlike `remember`, `add-document` does **not** auto-push after every add yet — pushes are manual for now (run from inside `files/`: `git add -A && git commit -m "..." && git push`). Ask if you'd like the same auto-push-by-default behavior added here.
