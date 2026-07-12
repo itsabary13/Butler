@@ -1,6 +1,6 @@
 # Epic: Memory Module
 
-**Status: Shipped** (v1 + v1.1 + v1.2 (auto-push backup) — see `docs/features/memory-module.md`)
+**Status: Shipped** (v1 + v1.1 + v1.2 (auto-push backup) + v1.3 (calendar sync) — see `docs/features/memory-module.md`)
 
 ## Idea
 
@@ -43,6 +43,12 @@ Still OUT OF SCOPE: Update memory, Delete memory, Link related memories (as a st
 
 `remember` now commits and pushes the wiki's private backup repo (`backend/memory-module/README.md`) after every save by default, opt-out per save via "no push" in that save's message. No new component — reuses the existing backup repo set up when the durability gap was raised. See `docs/architecture/memory-module.md`'s Durability note and `.claude/skills/remember/SKILL.md` step 7.
 
+## v1.3 — Calendar sync (fast-path increment, one exception noted)
+
+A new skill, `sync-calendar`, pulls upcoming events from the user's primary Google Calendar (`itsabary@gmail.com` only, upcoming events only, default 7-day window) into one reserved wiki page (`upcoming-events.md`). Explicitly does **not** send reminders/notifications — no background process exists in this architecture, so that would need genuinely different infrastructure and is deliberately left as a separate, not-yet-built feature. Repeatable on demand ("sync my calendar" or asking what's coming up).
+
+One documented exception to Memory's core rule: this reserved page is **replaced wholesale on every sync**, not merged/appended — see `docs/domain/memory-module.md` and `docs/db/memory-module.md` for why this doesn't reopen the deferred "Update memory" capability. Reuses the existing auto-push backup behavior from v1.2.
+
 ## Fixed constraints for v1
 
 - **Data layer: a wiki, not a database.** Memory is stored as a small set of interlinked Markdown pages organized by topic/concept ("Karpathy wiki-memory" pattern) — not a per-entry dated log, not a database, not a vector index. Claude itself creates and edits pages, cross-referencing related pages with `[[wiki-links]]`.
@@ -59,7 +65,7 @@ These constraints bind `architect`, `api-designer`, and `database-designer`: API
 - [x] API Design (N/A for v1 — no server/network boundary, see docs/architecture/memory-module.md) — api-designer — `docs/api/memory-module.md`
 - [x] Database Design (wiki page structure, not a database) — database-designer — `docs/db/memory-module.md` (v1.1: adds optional `tag` frontmatter field)
 - [x] UI (N/A — no dedicated UI, see docs/ui/memory-module.md) — frontend-developer — `docs/ui/memory-module.md`
-- [x] Implementation (backend) — backend-developer — `.claude/skills/remember/`, `.claude/skills/recall/`, `backend/memory-module/` (v1.1: tag inference in `remember`, tag filtering in `recall`)
+- [x] Implementation (backend) — backend-developer — `.claude/skills/remember/`, `.claude/skills/recall/`, `backend/memory-module/` (v1.1: tag inference in `remember`, tag filtering in `recall`; v1.3: new `sync-calendar` skill)
 - [x] Implementation (frontend) (N/A — no UI to implement) — frontend-developer — `frontend/memory-module/` (no subfolder)
 - [x] Tests — test-engineer — `docs/tests/memory-module.md` (v1.1: 9/9 tests, incl. tag validation + filtered-recall smoke test)
 - [x] Review — reviewer — `docs/reviews/memory-module.md` (PASS; v1.1 tag addendum also PASS, no new high-severity findings)

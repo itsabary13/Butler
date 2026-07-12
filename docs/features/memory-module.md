@@ -8,6 +8,7 @@ Jarvis can remember things you tell it and recall them later — no commands nee
 - **Recalls automatically.** Ask a question that relates to something you've told it before, and Jarvis looks through what it remembers and answers using that context — without you needing to ask it to "search" anything.
 - **Optional Private/Work tagging.** When you save something that's clearly personal or clearly work-related, Jarvis tags it accordingly. You can then ask a work-scoped question ("what do I have going on at work?") and it will only draw on Work-tagged memories for that answer. Untagged memories (most of them, day to day) are unaffected and still show up in ordinary, unfiltered questions.
 - **Backed up automatically.** Every save is also pushed to a private backup so it survives a machine change — you don't need to do anything for this to happen. Say "no push" in a specific save's message if you want that one save kept local-only.
+- **Calendar sync.** Ask Jarvis to sync your calendar (or just ask what's coming up), and it pulls upcoming events from your primary Google Calendar for the next 7 days by default. This doesn't send reminders or alerts — it only refreshes what Jarvis knows, so it can answer when you ask. Re-sync anytime to refresh with new/changed events.
 
 ## How it works, briefly
 
@@ -19,9 +20,11 @@ Memories are stored as a small wiki of Markdown pages — one page per topic, no
 - **No explicit "link these together" or "tag this" command** — tagging only happens automatically at save time based on how you phrased it; linking between pages only happens as a side effect of merging related information, not as a feature you can trigger directly.
 - **Retrieval doesn't scale to a huge number of memories yet** — recall works by reading through candidate pages, not an index, so it may get slower/less precise as the wiki grows very large. Not a problem at current scale.
 - **"Private" is a label, not a lock.** Tagging something Private helps recall filter it out of Work-scoped questions, but it isn't real access control — there's no separate audience or account boundary being protected today.
+- **No proactive reminders.** Calendar sync only refreshes data for later Q&A — Jarvis won't alert you at a specific time on its own. That would need a genuinely different mechanism and is a deliberately separate, not-yet-built feature.
+- **Calendar sync is primary-calendar-only, upcoming-events-only, one page.** Not your shared/family calendars, not past events, and syncing again fully replaces the prior snapshot rather than keeping history.
 
 ## Where things live (for reference)
 
 - `specs/epics/memory-module.md` — full scope and decision history
-- `.claude/skills/remember/`, `.claude/skills/recall/` — the actual implementation
+- `.claude/skills/remember/`, `.claude/skills/recall/`, `.claude/skills/sync-calendar/` — the actual implementation
 - `backend/memory-module/wiki/` — your saved memories. Excluded from the main Butler repo (this is personal data, not project scaffolding) but automatically backed up to its own separate private GitHub repo (`butler-memory`) — see `backend/memory-module/README.md` for the restore steps on a new machine.

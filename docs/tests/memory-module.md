@@ -29,6 +29,8 @@ Since `remember`/`recall` are natural-language-instructed skills, not determinis
 
 **v1.1 addition**: repeated the smoke test for tagging — saved a throwaway `work`-tagged memory alongside two real, untagged memories already in the wiki (`user-name.md`, `kia-license-plate.md`), then asked a work-scoped question. `recall` correctly filtered to only the `work`-tagged page, excluding the untagged ones from that filtered query. Validated the new page's structure, then deleted only the throwaway page — the real untagged memories were left untouched.
 
+**v1.3 addition**: `sync-calendar` was exercised live for real (not a throwaway test) — fetched the next 7 days from the user's actual primary calendar, correctly excluded `BIRTHDAY`-type events (already handled by the earlier one-time birthday import), and wrote `upcoming-events.md` as a first-time create (`created_at` = `updated_at`). Validated clean. Re-running this sync (not yet exercised) should replace the body and advance only `updated_at` — worth confirming on the next real sync.
+
 ## What's deliberately not tested
 
 - Merge-vs-create judgment quality across many pages, and multi-hop link-following — acceptable to defer; the smoke test only exercised the single-page case. Revisit with more scenarios if `reviewer` or real usage surfaces a problem.

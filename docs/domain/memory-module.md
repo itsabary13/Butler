@@ -42,6 +42,10 @@ erDiagram
 
 A page can link to zero or more other pages, and be linked from zero or more other pages. Storage records a link as a directed reference (written by whichever page's save/merge added it), but retrieval traversal (per the retrieve-memory story's requirement to follow links from an initial match) should treat the graph as effectively undirected — a related page should be discoverable regardless of which page recorded the link first. (Exact traversal mechanics are `backend-developer`'s to implement; this is a domain-level note, not an algorithm spec.)
 
+## Note on the calendar sync page (v1.3, exception to the merge rule)
+
+`sync-calendar` (`.claude/skills/sync-calendar/SKILL.md`) maintains exactly one reserved `WikiPage` — slug `upcoming-events` — whose `content` is **replaced wholesale on every sync**, not merged/appended like every other page. This is a deliberate, narrow exception: a rolling snapshot of upcoming events has no meaning to preserve once superseded by a fresher sync, unlike a fact about a person or topic. It does **not** reopen the deferred "Update memory" capability — that would mean editing the content of *arbitrary* pages after the fact; this is a single, reserved page whose entire reason for existing is to be replaced. `created_at` is set once (first sync); `updated_at` changes on every subsequent sync, per the existing invariant.
+
 ## Note on deferred capabilities
 
 The epic still defers "Link related memories" as a standalone user-facing capability (see `specs/epics/memory-module.md`'s out-of-scope list) — the `links` relationship above already exists in v1 as internal domain plumbing (it's what lets the save flow avoid creating duplicate pages, FR-2 of `save-memory.md`, and lets retrieval follow connected context, FR-2 of `retrieve-memory.md`). A future epic implementing "Link related memories" as an explicit feature should **extend this existing relationship** rather than introduce a second, competing link mechanism.

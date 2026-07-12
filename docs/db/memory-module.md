@@ -50,9 +50,13 @@ Frontmatter carries `slug`, `title`, `created_at`, `updated_at`, and (v1.1, opti
 
 Filtering is a read-time concern, not a storage concern: `recall` filters its candidate set by reading each page's `tag` frontmatter field before deciding relevance. No separate index or per-tag directory is introduced — with the wiki's expected size, scanning frontmatter across all pages is cheap enough that a tag index would be premature.
 
+## Calendar sync page (v1.3)
+
+`sync-calendar` owns exactly one reserved page: `upcoming-events.md` (slug `upcoming-events`, fixed — never disambiguated/renamed). Unlike every other page, its `content` is **replaced wholesale** on each sync rather than appended to (see `docs/domain/memory-module.md`'s note on this exception). Frontmatter is otherwise the same shape (`slug`, `title`, `created_at`, `updated_at`; no `tag`, since it's a mixed collection of events rather than a single classifiable topic). If the synced window has zero events, `content` still can't be empty (domain invariant) — write a short "No upcoming events in the next N days." line instead of an empty body.
+
 ## Lifecycle Status
 
-See `specs/epics/memory-module.md` — this stage is checked off with this file as its artifact. (v1.1 update: added the optional `tag` field.)
+See `specs/epics/memory-module.md` — this stage is checked off with this file as its artifact. (v1.1 update: added the optional `tag` field. v1.3: added the reserved calendar sync page.)
 
 ## Hand-off
 
