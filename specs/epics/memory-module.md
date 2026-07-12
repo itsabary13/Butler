@@ -39,7 +39,7 @@ These constraints bind `architect`, `api-designer`, and `database-designer`: API
 ## Lifecycle Status
 
 - [x] Epic / User Stories / Functional Requirements — requirements-analyst — `specs/stories/memory-module/`
-- [ ] Architecture — architect — `docs/architecture/memory-module.md`
+- [x] Architecture — architect — `docs/architecture/memory-module.md`
 - [ ] Domain Model — domain-designer — `docs/domain/memory-module.md`
 - [ ] API Design (expected N/A for v1) — api-designer — `docs/api/memory-module.md`
 - [ ] Database Design (expected N/A for v1 — wiki page structure instead) — database-designer — `docs/db/memory-module.md`
