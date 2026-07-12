@@ -1,6 +1,6 @@
 # Epic: Memory Module
 
-**Status: Shipped** (v1 + v1.1 — see `docs/features/memory-module.md`)
+**Status: Shipped** (v1 + v1.1 + v1.2 (auto-push backup) — see `docs/features/memory-module.md`)
 
 ## Idea
 
@@ -38,6 +38,10 @@ IN SCOPE:
 - `recall` can filter to only Private or only Work memories when the query implies that scope.
 
 Still OUT OF SCOPE: Update memory, Delete memory, Link related memories (as a standalone feature).
+
+## v1.2 — Automatic backup push (fast-path increment)
+
+`remember` now commits and pushes the wiki's private backup repo (`backend/memory-module/README.md`) after every save by default, opt-out per save via "no push" in that save's message. No new component — reuses the existing backup repo set up when the durability gap was raised. See `docs/architecture/memory-module.md`'s Durability note and `.claude/skills/remember/SKILL.md` step 7.
 
 ## Fixed constraints for v1
 

@@ -7,6 +7,7 @@ Jarvis can remember things you tell it and recall them later — no commands nee
 - **Remembers automatically.** Tell Jarvis a fact, preference, or plan worth keeping — explicitly ("remember that...") or just by mentioning it — and it saves the information for future conversations.
 - **Recalls automatically.** Ask a question that relates to something you've told it before, and Jarvis looks through what it remembers and answers using that context — without you needing to ask it to "search" anything.
 - **Optional Private/Work tagging.** When you save something that's clearly personal or clearly work-related, Jarvis tags it accordingly. You can then ask a work-scoped question ("what do I have going on at work?") and it will only draw on Work-tagged memories for that answer. Untagged memories (most of them, day to day) are unaffected and still show up in ordinary, unfiltered questions.
+- **Backed up automatically.** Every save is also pushed to a private backup so it survives a machine change — you don't need to do anything for this to happen. Say "no push" in a specific save's message if you want that one save kept local-only.
 
 ## How it works, briefly
 
@@ -23,4 +24,4 @@ Memories are stored as a small wiki of Markdown pages — one page per topic, no
 
 - `specs/epics/memory-module.md` — full scope and decision history
 - `.claude/skills/remember/`, `.claude/skills/recall/` — the actual implementation
-- `backend/memory-module/wiki/` — your saved memories (not committed to git — this is personal data, kept local only)
+- `backend/memory-module/wiki/` — your saved memories. Excluded from the main Butler repo (this is personal data, not project scaffolding) but automatically backed up to its own separate private GitHub repo (`butler-memory`) — see `backend/memory-module/README.md` for the restore steps on a new machine.
