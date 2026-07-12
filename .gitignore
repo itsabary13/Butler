@@ -1,5 +1,8 @@
 .claude/settings.local.json
 
+# Personal memory data (not project scaffolding) — see backend/memory-module/README.md
+backend/memory-module/wiki/
+
 # OS
 Thumbs.db
 Desktop.ini
