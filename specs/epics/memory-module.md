@@ -43,9 +43,9 @@ These constraints bind `architect`, `api-designer`, and `database-designer`: API
 - [x] Domain Model — domain-designer — `docs/domain/memory-module.md`
 - [x] API Design (N/A for v1 — no server/network boundary, see docs/architecture/memory-module.md) — api-designer — `docs/api/memory-module.md`
 - [x] Database Design (wiki page structure, not a database) — database-designer — `docs/db/memory-module.md`
-- [ ] UI — frontend-developer — `docs/ui/memory-module.md`
+- [x] UI (N/A — no dedicated UI, see docs/ui/memory-module.md) — frontend-developer — `docs/ui/memory-module.md`
 - [ ] Implementation (backend) — backend-developer — `backend/memory-module/`
-- [ ] Implementation (frontend) — frontend-developer — `frontend/memory-module/`
+- [x] Implementation (frontend) (N/A — no UI to implement) — frontend-developer — `frontend/memory-module/` (no subfolder)
 - [ ] Tests — test-engineer — `docs/tests/memory-module.md`
 - [ ] Review — reviewer — `docs/reviews/memory-module.md`
 - [ ] Documentation — technical-writer — `docs/features/memory-module.md`
