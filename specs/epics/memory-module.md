@@ -1,5 +1,7 @@
 # Epic: Memory Module
 
+**Status: Shipped** (v1 + v1.1 — see `docs/features/memory-module.md`)
+
 ## Idea
 
 Foundational module for Jarvis: lets the AI remember information across conversations and retrieve it when relevant. First epic in the MVP roadmap (Phase 1) and the foundation for all future AI interactions.
@@ -28,6 +30,15 @@ OUT OF SCOPE for v1 (explicitly deferred, revisit as later stories/epic incremen
 
 "Search" here means AI-assisted retrieval, not a separate keyword-search feature — see the data-layer constraint below.
 
+## v1.1 scope — Tag memories (added after v1 shipped)
+
+IN SCOPE:
+- Optionally classify a memory as **Private** or **Work** at save time. Tagging is **optional** — a memory can also stay untagged.
+- **New saves only.** Retagging or editing the tag of an already-saved memory is OUT OF SCOPE for this increment (that would require the still-deferred "Update memory" capability) — memories saved before this increment (e.g. `user-name.md`, `kia-license-plate.md`) remain untagged.
+- `recall` can filter to only Private or only Work memories when the query implies that scope.
+
+Still OUT OF SCOPE: Update memory, Delete memory, Link related memories (as a standalone feature).
+
 ## Fixed constraints for v1
 
 - **Data layer: a wiki, not a database.** Memory is stored as a small set of interlinked Markdown pages organized by topic/concept ("Karpathy wiki-memory" pattern) — not a per-entry dated log, not a database, not a vector index. Claude itself creates and edits pages, cross-referencing related pages with `[[wiki-links]]`.
@@ -38,17 +49,17 @@ These constraints bind `architect`, `api-designer`, and `database-designer`: API
 
 ## Lifecycle Status
 
-- [x] Epic / User Stories / Functional Requirements — requirements-analyst — `specs/stories/memory-module/`
+- [x] Epic / User Stories / Functional Requirements — requirements-analyst — `specs/stories/memory-module/` (v1.1: adds `tag-memory.md`)
 - [x] Architecture — architect — `docs/architecture/memory-module.md`
-- [x] Domain Model — domain-designer — `docs/domain/memory-module.md`
+- [x] Domain Model — domain-designer — `docs/domain/memory-module.md` (v1.1: adds optional `tag` field)
 - [x] API Design (N/A for v1 — no server/network boundary, see docs/architecture/memory-module.md) — api-designer — `docs/api/memory-module.md`
-- [x] Database Design (wiki page structure, not a database) — database-designer — `docs/db/memory-module.md`
+- [x] Database Design (wiki page structure, not a database) — database-designer — `docs/db/memory-module.md` (v1.1: adds optional `tag` frontmatter field)
 - [x] UI (N/A — no dedicated UI, see docs/ui/memory-module.md) — frontend-developer — `docs/ui/memory-module.md`
-- [x] Implementation (backend) — backend-developer — `.claude/skills/remember/`, `.claude/skills/recall/`, `backend/memory-module/`
+- [x] Implementation (backend) — backend-developer — `.claude/skills/remember/`, `.claude/skills/recall/`, `backend/memory-module/` (v1.1: tag inference in `remember`, tag filtering in `recall`)
 - [x] Implementation (frontend) (N/A — no UI to implement) — frontend-developer — `frontend/memory-module/` (no subfolder)
-- [x] Tests — test-engineer — `docs/tests/memory-module.md`
-- [x] Review — reviewer — `docs/reviews/memory-module.md` (PASS, 2 low/medium follow-up recommendations)
-- [ ] Documentation — technical-writer — `docs/features/memory-module.md`
+- [x] Tests — test-engineer — `docs/tests/memory-module.md` (v1.1: 9/9 tests, incl. tag validation + filtered-recall smoke test)
+- [x] Review — reviewer — `docs/reviews/memory-module.md` (PASS; v1.1 tag addendum also PASS, no new high-severity findings)
+- [x] Documentation — technical-writer — `docs/features/memory-module.md`
 
 ## MVP Roadmap Context
 

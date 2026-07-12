@@ -14,12 +14,14 @@ The single persisted entity for v1. Per `docs/architecture/memory-module.md`, a 
 | `links` | list of `slug` | Outgoing `[[wiki-link]]` references to related pages (see Relationships). |
 | `created_at` | datetime | Set once, when the page is first created. |
 | `updated_at` | datetime | Set whenever the page is merged/extended with new information. |
+| `tag` | enum: `private`, `work`, or absent | Added in v1.1 (`tag-memory.md`). Optional — most pages will have no value. Set once, at creation, from the save-time signal; not editable in this increment (retagging is out of scope). |
 
 **Invariants**:
 - `slug` is unique across the wiki — no two pages share a filename.
 - `content` must be non-empty (a page must hold some remembered information — matches the save-memory story's edge case that a save must never silently no-op).
 - Every entry in `links` must reference a `slug` that exists as an actual WikiPage — no dangling links.
 - `created_at` <= `updated_at`.
+- `tag`, when present, must be exactly `private` or `work` — no other values, no multiple tags on one page (v1.1).
 
 ## Relationships
 
@@ -33,6 +35,7 @@ erDiagram
     text content
     datetime created_at
     datetime updated_at
+    string tag "optional: private | work"
   }
   WIKI_PAGE ||--o{ WIKI_PAGE : "relates to (wiki-link)"
 ```
@@ -41,7 +44,9 @@ A page can link to zero or more other pages, and be linked from zero or more oth
 
 ## Note on deferred capabilities
 
-The epic defers "Tag memories" and "Link related memories" as standalone user-facing capabilities (see `specs/epics/memory-module.md`'s out-of-scope list). However, the `links` relationship above already exists in v1 as internal domain plumbing — it's what lets the save flow avoid creating duplicate pages (FR-2 of `save-memory.md`) and lets retrieval follow connected context (FR-2 of `retrieve-memory.md`). When a future epic implements "Link related memories" as an explicit feature, it should **extend this existing relationship** (e.g. adding link metadata/type) rather than introduce a second, competing link mechanism. "Tag memories" would be a genuinely new field (e.g. `tags: list of string`) not modeled here since nothing in the v1 stories requires it.
+The epic still defers "Link related memories" as a standalone user-facing capability (see `specs/epics/memory-module.md`'s out-of-scope list) — the `links` relationship above already exists in v1 as internal domain plumbing (it's what lets the save flow avoid creating duplicate pages, FR-2 of `save-memory.md`, and lets retrieval follow connected context, FR-2 of `retrieve-memory.md`). A future epic implementing "Link related memories" as an explicit feature should **extend this existing relationship** rather than introduce a second, competing link mechanism.
+
+"Tag memories" (v1.1) is now in scope as the single `tag` field above — a plain enum, not a list, since v1.1 only supports one tag per page and no retagging. If a future increment wants free-form multi-tag support, that would replace this field rather than sit alongside it (avoid maintaining two competing classification mechanisms).
 
 ## Non-entities considered and excluded
 

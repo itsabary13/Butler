@@ -45,6 +45,14 @@ Implementation matches `docs/architecture/memory-module.md`, `docs/domain/memory
 
 **Verdict: PASS**, with two follow-up recommendations (slug sanitization, and documenting the create/merge linking gap) to address opportunistically — neither is high-severity or blocks moving to Documentation.
 
+## v1.1 addendum — Tag memories
+
+Reviewed the tag increment: `tag-memory.md`, the `tag` field additions to the domain/db docs, `remember`/`recall`'s tag inference/filtering instructions, and the extended validator + smoke test in `docs/tests/memory-module.md`.
+
+**Finding (Low, non-blocking, already flagged at design time)**: `docs/architecture/memory-module.md`'s v1.1 addendum correctly notes that `private` is a self-reported convenience tag, not real access control — nothing prevents an unfiltered `recall` query (or a bug in it) from surfacing a Private-tagged memory. No fix needed for v1.1's stated scope (there's no cross-user or cross-context boundary to protect yet, single user/session), but worth keeping in mind if Jarvis ever gains multiple profiles or shared contexts.
+
+No new high-severity findings. Implementation matches the story and design docs: tagging is optional and creation-only (merge path correctly leaves existing tags untouched, matching the out-of-scope note), filtering correctly excludes untagged pages only from filtered queries and leaves general queries unaffected, and the validator now rejects any tag value other than `private`/`work`. **Verdict: PASS.**
+
 ## Lifecycle Status
 
 See `specs/epics/memory-module.md` — this stage is checked off with this file as its artifact.

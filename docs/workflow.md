@@ -34,6 +34,21 @@ Two corrections to the original master plan (`input/Jarvis-Claude-Code-Plan.md`)
 
 Every skill is manually invoked only (`disable-model-invocation: true`) — nothing runs automatically. You gate each stage on purpose by typing the matching slash command.
 
+## Full lifecycle vs. fast path
+
+The full 12-stage lifecycle is for **new epics** and **substantial capability changes** — where getting the spec/architecture/domain model wrong is expensive to unwind.
+
+For a **small increment to an epic that's already shipped** (a new optional field, a minor behavior tweak, anything reversible and cheap), don't run every stage as its own separate, fully-documented pass. Instead:
+
+- Describe the change once (a short story addition is still worth writing — it's what keeps scope honest — but skip a big ceremony around it).
+- Touch only the design docs that actually change, and edit them in place with a short addition rather than rewriting them. If a stage genuinely doesn't change (e.g. UI, API), don't add anything to that doc at all — no need to re-state "still N/A."
+- Implement directly in the same pass as the design update, rather than treating each of Architecture/Domain/DB/Backend as a separate invocation-and-checkpoint.
+- Cover it with tests proportional to the change (extend the existing test file/fixtures; don't build new infrastructure for a small addition) and a short review note appended to the epic's existing review doc, rather than a full new findings report.
+- Fold the change into the epic's existing feature doc when `technical-writer` next runs, rather than writing a new one.
+- Still update the epic's Lifecycle Status / add a one-line note so there's a record of what shipped — the artifact trail should be thinner, not absent.
+
+Rule of thumb: if the change fits in one sitting and doesn't introduce a new component, server, or entity, it's a fast-path increment. If it does, it's substantial enough to warrant the full lifecycle.
+
 ## Conventions
 
 - **Slugs**: kebab-case of the epic/story title (`Memory module` → `memory-module`).

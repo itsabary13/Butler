@@ -22,6 +22,7 @@ slug: home-address
 title: Home Address
 created_at: 2026-07-12T18:30:00Z
 updated_at: 2026-07-12T18:30:00Z
+tag: private
 ---
 
 Irene's home address is ...
@@ -29,7 +30,9 @@ Irene's home address is ...
 Related: [[moving-plans]]
 ```
 
-Frontmatter carries only `slug`, `title`, `created_at`, `updated_at` — it deliberately does **not** duplicate the domain model's `links` field as a separate array. Reconciliation with the domain model: `links` is persisted as inline `[[slug]]` references within `content`, not a parallel frontmatter list. Keeping one source of truth avoids the two drifting apart when content is edited but a frontmatter array is forgotten.
+Frontmatter carries `slug`, `title`, `created_at`, `updated_at`, and (v1.1, optional) `tag` — it deliberately does **not** duplicate the domain model's `links` field as a separate array. Reconciliation with the domain model: `links` is persisted as inline `[[slug]]` references within `content`, not a parallel frontmatter list. Keeping one source of truth avoids the two drifting apart when content is edited but a frontmatter array is forgotten.
+
+**`tag` (v1.1, optional)**: value is exactly `private`, `work`, or the field is omitted entirely (never an empty string, never any other value). Set only at page creation from `remember`'s save-time inference — this increment does not support editing a page's tag afterward, so once written it's not touched again by `remember`'s merge path either.
 
 ## `[[wiki-link]]` cross-referencing convention
 
@@ -42,10 +45,14 @@ Frontmatter carries only `slug`, `title`, `created_at`, `updated_at` — it deli
 - **Create**: no existing page is topically related -> write a new `<slug>.md` with `created_at` = `updated_at` = now.
 - **Merge**: an existing related page is found -> append the new information into that page's `content` (as a new paragraph/subsection, not a full rewrite) and set `updated_at` = now. `created_at` is untouched. If the new information also relates to a second existing page, add the bidirectional `[[...]]` link between the merged-into page and that second page.
 
+## Tag-based filtering (v1.1)
+
+Filtering is a read-time concern, not a storage concern: `recall` filters its candidate set by reading each page's `tag` frontmatter field before deciding relevance. No separate index or per-tag directory is introduced — with the wiki's expected size, scanning frontmatter across all pages is cheap enough that a tag index would be premature.
+
 ## Lifecycle Status
 
-See `specs/epics/memory-module.md` — this stage is checked off with this file as its artifact.
+See `specs/epics/memory-module.md` — this stage is checked off with this file as its artifact. (v1.1 update: added the optional `tag` field.)
 
 ## Hand-off
 
-Next: `frontend-developer` (`/frontend-developer`) — expected to confirm "no dedicated UI for v1" per the architecture doc, then `backend-developer` (`/backend-developer`) for implementation of the `remember`/`recall` skills against this file structure.
+v1 hand-off (historical): `frontend-developer` confirmed no dedicated UI, then `backend-developer` implemented `remember`/`recall`. v1.1 hand-off: back to `backend-developer` (`/backend-developer`) to add tag inference/filtering to the existing skills.

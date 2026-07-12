@@ -6,13 +6,15 @@ The Memory module's implementation is two auto-invoked Claude Code skills (`.cla
 
 `backend/memory-module/tests/validate_wiki.py` checks any set of wiki pages against the invariants in `docs/domain/memory-module.md` and `docs/db/memory-module.md`: required frontmatter fields present, `content` non-empty, `slug` matches filename, no dangling `[[links]]`, `created_at <= updated_at`.
 
-`backend/memory-module/tests/test_validate_wiki.py` is a `unittest` suite exercising the validator against fixtures in `backend/memory-module/tests/fixtures/`: one `valid/` pair of cross-linked pages (expect zero errors), and five `invalid/<case>/` fixtures, one per invariant violation (missing field, empty content, dangling link, bad timestamps, slug/filename mismatch — each expected to be individually detected).
+`backend/memory-module/tests/test_validate_wiki.py` is a `unittest` suite exercising the validator against fixtures in `backend/memory-module/tests/fixtures/`: one `valid/` pair of cross-linked pages (expect zero errors), and six `invalid/<case>/` fixtures, one per invariant violation (missing field, empty content, dangling link, bad timestamps, slug/filename mismatch, invalid tag value — each expected to be individually detected).
+
+**v1.1 addition**: the validator also checks the optional `tag` field is exactly `private`, `work`, or absent (`fixtures/invalid/bad-tag/`); one `valid/` fixture now carries a real `tag: work` to exercise the accepted path too.
 
 **How to run:**
 ```
 python backend/memory-module/tests/test_validate_wiki.py -v
 ```
-**Result:** 7/7 tests pass.
+**Result:** 9/9 tests pass.
 
 ## 2. Behavioral smoke test (manual, one-time — documents that the skills actually work end to end)
 
@@ -25,10 +27,13 @@ Since `remember`/`recall` are natural-language-instructed skills, not determinis
 
 **Result:** save-then-retrieve round-trip works as specified in both stories.
 
+**v1.1 addition**: repeated the smoke test for tagging — saved a throwaway `work`-tagged memory alongside two real, untagged memories already in the wiki (`user-name.md`, `kia-license-plate.md`), then asked a work-scoped question. `recall` correctly filtered to only the `work`-tagged page, excluding the untagged ones from that filtered query. Validated the new page's structure, then deleted only the throwaway page — the real untagged memories were left untouched.
+
 ## What's deliberately not tested
 
 - Merge-vs-create judgment quality across many pages, and multi-hop link-following — acceptable to defer; the smoke test only exercised the single-page case. Revisit with more scenarios if `reviewer` or real usage surfaces a problem.
-- Tag/Update/Delete/Link-as-a-feature — out of scope for v1 (see `specs/epics/memory-module.md`), so untested by design.
+- Update/Delete/Link-as-a-feature, and retagging an existing page — out of scope (see `specs/epics/memory-module.md`), so untested by design.
+- Ambiguous or ambiguously-mixed-scope queries for tag filtering (e.g. a query that references both private and work context) — `recall`'s instructions say default to no filtering, but this wasn't exercised live; only a clearly work-scoped query was tested.
 
 ## Lifecycle Status
 

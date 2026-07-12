@@ -2,13 +2,15 @@
 """Validates memory-module wiki pages against the invariants in
 docs/domain/memory-module.md and docs/db/memory-module.md: required
 frontmatter fields, non-empty content, slug/filename match, no
-dangling [[links]], and created_at <= updated_at."""
+dangling [[links]], created_at <= updated_at, and (v1.1) an optional
+tag restricted to 'private' or 'work'."""
 
 import re
 import sys
 from pathlib import Path
 
 REQUIRED_FIELDS = ["slug", "title", "created_at", "updated_at"]
+VALID_TAGS = {"private", "work"}
 LINK_PATTERN = re.compile(r"\[\[([a-z0-9-]+)\]\]")
 
 
@@ -54,6 +56,9 @@ def validate_page(path: Path, known_slugs: set) -> list:
     updated_at = frontmatter.get("updated_at")
     if created_at and updated_at and updated_at < created_at:
         errors.append(f"updated_at ({updated_at}) is before created_at ({created_at})")
+
+    if "tag" in frontmatter and frontmatter["tag"] not in VALID_TAGS:
+        errors.append(f"invalid tag: '{frontmatter['tag']}' (must be 'private' or 'work')")
 
     for linked_slug in LINK_PATTERN.findall(body):
         if linked_slug not in known_slugs:

@@ -50,10 +50,21 @@ Proposed physical location for the Wiki Store: `backend/memory-module/wiki/` (de
 - **Database Design: Redirected, not skipped.** No conventional schema applies. `database-designer` instead defines the wiki's page-naming/slug convention, the `[[wiki-link]]` cross-referencing rule, merge-vs-create-page logic, and confirms (or overrides) the proposed storage path above.
 - **UI: Expected Not Applicable for v1.** Interaction is purely conversational through Claude Code chat — save/recall happen as a byproduct of normal conversation, not through a dedicated screen. `frontend-developer` should confirm this explicitly rather than build a UI nobody asked for.
 
+## v1.1 addendum — Tag memories (`specs/stories/memory-module/tag-memory.md`)
+
+No new components and no change to the runtime model above. The addition is a data attribute plus a query-time behavior:
+
+- **Memory Writer** (`remember`) now optionally records a `tag` (`private` | `work` | absent) as part of the same write it was already doing — no new component.
+- **Memory Retriever** (`recall`) now optionally narrows its candidate scan to pages matching a tag, when the query implies that scope — still no index, still Claude reasoning about relevance, just over a filtered candidate set instead of all pages.
+
+Still no server, no API, no UI. `database-designer` owns the frontmatter representation of `tag`; `backend-developer` owns how `remember` infers a tag and how `recall` detects filtering intent from a query.
+
+**Note for `reviewer`**: "Private" as a self-reported, unenforced tag doesn't add any actual access control — it's a retrieval convenience, not a security boundary. There's nothing stopping `recall` (or a bug in it) from surfacing a Private-tagged memory in an unfiltered query, same as any other page. Worth reviewing once implemented, not blocking the design.
+
 ## Lifecycle Status
 
 See `specs/epics/memory-module.md` — this stage is checked off with this file as its artifact.
 
 ## Hand-off
 
-Next: `domain-designer` (`/domain-designer`) — this epic has a real (if small) domain model: a Wiki Page entity and its link relationships.
+Next: `domain-designer` (`/domain-designer`) — this epic has a real (if small) domain model: a Wiki Page entity and its link relationships (v1.1 adds the `tag` field).

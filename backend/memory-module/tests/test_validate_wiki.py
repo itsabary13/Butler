@@ -48,6 +48,17 @@ class TestValidateWiki(unittest.TestCase):
             for errs in results.values() for e in errs
         ))
 
+    def test_valid_tag_is_accepted(self):
+        results = validate_wiki(FIXTURES / "valid")
+        self.assertNotIn("python-language.md", results)
+
+    def test_invalid_tag_detected(self):
+        results = validate_wiki(FIXTURES / "invalid" / "bad-tag")
+        self.assertTrue(any(
+            "invalid tag" in e
+            for errs in results.values() for e in errs
+        ))
+
     def test_nonexistent_directory_is_ok(self):
         results = validate_wiki(FIXTURES / "does-not-exist")
         self.assertEqual(results, {})
