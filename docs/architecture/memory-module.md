@@ -43,6 +43,7 @@ Proposed physical location for the Wiki Store: `backend/memory-module/wiki/` (de
 - **Privacy**: memory data is local-only by construction. Because personal memories are a different sensitivity class than this repo's process-scaffolding docs, flagging for `database-designer`/`reviewer`: consider whether the Wiki Store directory needs a `.gitignore` entry so personal memory content isn't accidentally committed/pushed to a shared remote.
 - **Scalability**: wiki-browsing retrieval (no index) means retrieval cost/quality degrades as the number of pages grows. Acceptable for v1 (matches the retrieve-memory story's large-wiki edge case) and called out as a known limitation rather than solved now — revisit only if it becomes a real problem.
 - **Portability**: plain Markdown means the wiki is human-readable and editable outside Claude Code too.
+- **Durability**: since the wiki is gitignored from the main repo (per the privacy note above), it isn't backed up anywhere by default — losing the machine means losing the data. Resolved by giving `wiki/` its own independent git repo, pushed to a separate **private** GitHub repo (`backend/memory-module/README.md` has the URL) — kept fully separate from the public-facing project repo so memory content is never exposed alongside project scaffolding.
 
 ## Downstream stage applicability
 
