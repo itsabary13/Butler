@@ -6,7 +6,7 @@ Jarvis can store actual files for you — PDFs, Word documents, images, anything
 
 - **Stores real files.** Give Jarvis a path to a file, or point it at something in your Google Drive, and ask it to save/store it — it keeps an exact copy, no re-encoding, no compression, byte-for-byte. Google Docs/Sheets/Slides (which aren't real files until exported) come in as PDF by default.
 - **Finds them again.** Ask about a document later (by topic, not necessarily its exact name) and Jarvis locates it and opens it — for readable formats (PDF, plain text), it can summarize or answer questions using the actual content, not just confirm the file exists.
-- **Backed up automatically to a private repo.** Your documents survive a machine change the same way Memory's do — a separate private backup, never exposed via the public-facing project repo. Unlike Memory, this backup isn't pushed after every single add yet — ask if you'd like that too.
+- **Backed up automatically to a private repo.** Your documents survive a machine change the same way Memory's do — a separate private backup, never exposed via the public-facing project repo, pushed after every single add just like Memory. Say "no push" in a specific add's message if you want that one kept local-only.
 
 ## How it works, briefly
 

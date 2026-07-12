@@ -1,6 +1,6 @@
 # Epic: Document Module
 
-**Status: Shipped** (v1 + v1.1 (Google Drive source) + v1.2 (backup repo) — see `docs/features/document-module.md`)
+**Status: Shipped** (v1 + v1.1 (Google Drive source) + v1.2 (backup repo) + v1.3 (auto-push) — see `docs/features/document-module.md`)
 
 ## Idea
 
@@ -25,7 +25,11 @@ OUT OF SCOPE for v1 (explicitly deferred):
 
 ## v1.2 — Backup repo (fast-path increment)
 
-`backend/document-module/files/` is now its own independent git repo, backed up to a separate private GitHub repo (`backend/document-module/README.md` has the URL), same pattern as Memory's `butler-memory` backup. Closes the durability gap flagged when this epic first shipped. Unlike Memory's `remember`, `add-document` doesn't auto-push after every add yet — pushes are manual for now.
+`backend/document-module/files/` is now its own independent git repo, backed up to a separate private GitHub repo (`backend/document-module/README.md` has the URL), same pattern as Memory's `butler-memory` backup. Closes the durability gap flagged when this epic first shipped.
+
+## v1.3 — Auto-push backup (fast-path increment)
+
+`add-document` now commits and pushes the document backup repo automatically after every add, opt-out per add via "no push" — same behavior `remember` got in the Memory module's v1.2.
 
 ## Fixed constraints for v1
 
