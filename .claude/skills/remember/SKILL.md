@@ -22,6 +22,7 @@ Implements the Memory Writer component of the Memory module (`docs/architecture/
 4. **Never produce a dangling link** — only write `[[slug]]` references to pages that exist at the time of writing (per the domain invariant in `docs/domain/memory-module.md`).
 5. **Never leave `content` empty** — if there's truly nothing substantive to save, don't create/modify a page; say so instead of writing an empty page.
 6. **Confirm the outcome to the user** briefly (e.g. "Got it, I'll remember that" / "Added that to what I know about X") — a save must never happen silently with no acknowledgment, and a failed write must be reported, not swallowed.
+7. **Back up automatically (v1.2).** After a successful write, commit and push the wiki's own git repo (`backend/memory-module/wiki/`, remote `https://github.com/itsabary13/butler-memory`) — `git add -A && git commit -m "..." && git push origin main`, run from inside `wiki/`. Do this by default, every time. **Skip it only if the user's own message for this save clearly asks to skip it** (e.g. "no push", "don't push this one", "skip backup") — the opt-out applies to that single save only, not as a standing preference. If the push fails (e.g. no network), the save itself still stands — tell the user the local save succeeded but the backup push failed, don't fail the whole operation over it.
 
 ## Tagging (v1.1 — new pages only)
 
