@@ -1,6 +1,6 @@
 # Epic: Memory Module
 
-**Status: Shipped** (v1 + v1.1 + v1.2 (auto-push backup) + v1.3 (calendar sync) — see `docs/features/memory-module.md`)
+**Status: Shipped** (v1 + v1.1 + v1.2 (auto-push backup) + v1.3 (calendar sync) + v1.4 (reminders page) — see `docs/features/memory-module.md`)
 
 ## Idea
 
@@ -49,6 +49,12 @@ A new skill, `sync-calendar`, pulls upcoming events from the user's primary Goog
 
 One documented exception to Memory's core rule: this reserved page is **replaced wholesale on every sync**, not merged/appended — see `docs/domain/memory-module.md` and `docs/db/memory-module.md` for why this doesn't reopen the deferred "Update memory" capability. Reuses the existing auto-push backup behavior from v1.2.
 
+## v1.4 — Reminders page (fast-path increment, second reserved-page exception)
+
+A second reserved wiki page, `reminders.md`, holds structured date/recurrence-triggered action items (`- <date-or-recurrence-rule>: <description>`), separate from ordinary freeform memory pages. `remember` now also writes to this page (in addition to a normal topic page, when relevant) whenever new information both has a date/recurrence and describes an action needed — conservatively triggered, since most saved facts aren't reminders. Unlike `upcoming-events.md` (replaced wholesale each sync), `reminders.md` **accumulates** lines over time, since a reminder doesn't go stale the way a calendar snapshot does.
+
+Built as the foundation for a not-yet-finished proactive-digest feature (see the mobile-access brainstorm, `docs/workflow.md`): a durable scheduled routine will eventually read this page daily and notify via Telegram when something's due — that delivery piece is blocked on the user setting up a Telegram bot and isn't built yet. This increment only ships the storage/detection half.
+
 ## Fixed constraints for v1
 
 - **Data layer: a wiki, not a database.** Memory is stored as a small set of interlinked Markdown pages organized by topic/concept ("Karpathy wiki-memory" pattern) — not a per-entry dated log, not a database, not a vector index. Claude itself creates and edits pages, cross-referencing related pages with `[[wiki-links]]`.
@@ -61,13 +67,13 @@ These constraints bind `architect`, `api-designer`, and `database-designer`: API
 
 - [x] Epic / User Stories / Functional Requirements — requirements-analyst — `specs/stories/memory-module/` (v1.1: adds `tag-memory.md`)
 - [x] Architecture — architect — `docs/architecture/memory-module.md`
-- [x] Domain Model — domain-designer — `docs/domain/memory-module.md` (v1.1: adds optional `tag` field)
+- [x] Domain Model — domain-designer — `docs/domain/memory-module.md` (v1.1: adds optional `tag` field; v1.4: adds `reminders.md` exception note)
 - [x] API Design (N/A for v1 — no server/network boundary, see docs/architecture/memory-module.md) — api-designer — `docs/api/memory-module.md`
-- [x] Database Design (wiki page structure, not a database) — database-designer — `docs/db/memory-module.md` (v1.1: adds optional `tag` frontmatter field)
+- [x] Database Design (wiki page structure, not a database) — database-designer — `docs/db/memory-module.md` (v1.1: adds optional `tag` frontmatter field; v1.4: adds reminders page format)
 - [x] UI (N/A — no dedicated UI, see docs/ui/memory-module.md) — frontend-developer — `docs/ui/memory-module.md`
-- [x] Implementation (backend) — backend-developer — `.claude/skills/remember/`, `.claude/skills/recall/`, `backend/memory-module/` (v1.1: tag inference in `remember`, tag filtering in `recall`; v1.3: new `sync-calendar` skill)
+- [x] Implementation (backend) — backend-developer — `.claude/skills/remember/`, `.claude/skills/recall/`, `backend/memory-module/` (v1.1: tag inference in `remember`, tag filtering in `recall`; v1.3: new `sync-calendar` skill; v1.4: reminder detection in `remember`)
 - [x] Implementation (frontend) (N/A — no UI to implement) — frontend-developer — `frontend/memory-module/` (no subfolder)
-- [x] Tests — test-engineer — `docs/tests/memory-module.md` (v1.1: 9/9 tests, incl. tag validation + filtered-recall smoke test)
+- [x] Tests — test-engineer — `docs/tests/memory-module.md` (v1.1: 9/9 tests, incl. tag validation + filtered-recall smoke test; v1.4: reminders detection smoke test)
 - [x] Review — reviewer — `docs/reviews/memory-module.md` (PASS; v1.1 tag addendum also PASS, no new high-severity findings)
 - [x] Documentation — technical-writer — `docs/features/memory-module.md`
 

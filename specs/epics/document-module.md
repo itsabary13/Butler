@@ -1,6 +1,6 @@
 # Epic: Document Module
 
-**Status: Shipped** (v1 + v1.1 (Google Drive source) + v1.2 (backup repo) + v1.3 (auto-push) — see `docs/features/document-module.md`)
+**Status: Shipped** (v1 + v1.1 (Google Drive source) + v1.2 (backup repo) + v1.3 (auto-push) + v1.4 (Drive inbox) — see `docs/features/document-module.md`)
 
 ## Idea
 
@@ -31,6 +31,10 @@ OUT OF SCOPE for v1 (explicitly deferred):
 
 `add-document` now commits and pushes the document backup repo automatically after every add, opt-out per add via "no push" — same behavior `remember` got in the Memory module's v1.2.
 
+## v1.4 — Drive inbox for mobile capture (fast-path increment)
+
+New manually-invoked skill `process-inbox` bulk-imports new files from a fixed Google Drive folder ("Jarvis Inbox"), reusing `add-document`'s Drive-download logic per file. Built as part of the broader mobile-access brainstorm (see `docs/workflow.md`'s mobile-access note): the phone's native Share sheet saves to that Drive folder, then the user asks Jarvis to process it — no new servers, no new integration, just a batch entry point over what `add-document` already does one file at a time. Tracks imported Drive file IDs locally (`backend/document-module/files/.imported-inbox-ids.json`) so re-running doesn't reprocess the same files.
+
 ## Fixed constraints for v1
 
 - **No server process** — same constraint as Memory. Everything happens locally through Claude Code reading/writing files directly.
@@ -47,7 +51,7 @@ OUT OF SCOPE for v1 (explicitly deferred):
 - [x] UI (N/A — no dedicated UI, see docs/ui/document-module.md) — frontend-developer — `docs/ui/document-module.md`
 - [x] Implementation (backend) — backend-developer — `.claude/skills/add-document/`, `.claude/skills/find-document/`, `backend/document-module/` (v1.1: Google Drive as a second source)
 - [x] Implementation (frontend) (N/A — no UI to implement) — frontend-developer — `frontend/document-module/` (no subfolder)
-- [x] Tests — test-engineer — `docs/tests/document-module.md` (5/5 tests, incl. add+retrieve smoke test)
+- [x] Tests — test-engineer — `docs/tests/document-module.md` (5/5 tests, incl. add+retrieve smoke test; v1.4: live inbox-import smoke test)
 - [x] Review — reviewer — `docs/reviews/document-module.md` (PASS; 1 high finding fixed during review, 1 medium follow-up recommendation)
 - [x] Documentation — technical-writer — `docs/features/document-module.md`
 

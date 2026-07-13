@@ -57,6 +57,10 @@ Rule of thumb: if the change fits in one sitting and doesn't introduce a new com
 - **N/A stages**: a skill may conclude its stage doesn't apply to a given epic (e.g. API/DB design for a local-only, no-server epic). It must still write a short doc saying so explicitly and why, rather than skipping the file or inventing unnecessary design.
 - **Wiki-as-data-layer epics**: some epics (starting with Memory) use a self-maintained wiki of interlinked Markdown pages as their data layer instead of a database — the "Karpathy wiki-memory" pattern. For these, `database-designer` documents the wiki's page/slug naming and `[[wiki-link]]` cross-referencing convention instead of a schema, and `api-designer` documents that no network API exists.
 
+## Using Jarvis from your phone
+
+No separate mobile app or server is needed — `claude.ai/code` (the Claude Code web app) works from a phone browser and connects to the same GitHub repo (`github.com/itsabary13/Butler`) this desktop session uses. Open `claude.ai/code`, open/continue the Butler project, and chat normally: `remember`, `recall`, `add-document`, `sync-calendar`, and `process-inbox` all auto-invoke the same way they do here, because it's the same skills operating on the same repo. There is nothing Jarvis-specific to set up for this — it's a property of Claude Code itself, not something built for this project.
+
 ## Definition of Done
 
 Every feature must include: Specification, Acceptance criteria, Architecture updates, Tests, Documentation, Review.

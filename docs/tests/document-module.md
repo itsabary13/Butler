@@ -23,6 +23,8 @@ python backend/document-module/tests/test_validate_documents.py -v
 
 **Result:** add-then-retrieve round-trip works as specified in both stories, including reading a readable file format's actual content at retrieval time.
 
+**v1.4 addition**: exercised `process-inbox` live — created a real "Jarvis Inbox" Drive folder and dropped a throwaway file into it, ran the import, confirmed the resulting document validated clean, then confirmed the dedup check (`.imported-inbox-ids.json`) would correctly skip that file on a re-run. No Drive delete/trash tool is available in this environment, so the throwaway file itself couldn't be removed from Drive — its ID was kept in the tracking file so a future real run won't try to import it as new content.
+
 ## What's deliberately not tested
 
 - Non-text-readable formats (PDF, images) — the smoke test used a `.txt` file for simplicity. The `add-document`/`find-document` instructions handle other formats the same way structurally (copy bytes, read frontmatter), but reading actual PDF/image content live wasn't exercised here.

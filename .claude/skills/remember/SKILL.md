@@ -1,6 +1,6 @@
 ---
 name: remember
-description: Saves information the user shares so it can be recalled in future conversations. Use whenever the user shares a fact, preference, plan, or other durable information worth remembering — either explicitly ("remember that...", "don't forget...", "note for later...") or implicitly when the user shares personal or project information Claude should retain (e.g. "my flight is at 6am on the 14th", "I prefer terse commit messages").
+description: Saves information the user shares so it can be recalled in future conversations. Use whenever the user shares a fact, preference, plan, or other durable information worth remembering — either explicitly ("remember that...", "don't forget...", "note for later...") or implicitly when the user shares personal or project information Claude should retain (e.g. "my flight is at 6am on the 14th", "I prefer terse commit messages"). Also picks up date/recurrence-based action items ("every 10th I need to...") and records them as reminders too.
 disable-model-invocation: false
 ---
 
@@ -29,6 +29,15 @@ Implements the Memory Writer component of the Memory module (`docs/architecture/
 When **creating a new page**, decide whether the information clearly reads as `private` (personal, non-work) or `work` (job/professional context). Set `tag` to whichever clearly applies. If there's no clear signal either way, **omit the field entirely** — tagging is optional and must never be forced or guessed weakly. Never set both, never invent a third value.
 
 This only applies at creation. When **merging** into an existing page, leave that page's existing `tag` value untouched — retagging an already-saved page is out of scope for this increment (see `tag-memory.md`'s out-of-scope note).
+
+## Reminders (v1.4)
+
+If the new information clearly has **both** (a) a date or recurrence rule (a specific date, "every 10th," "every Monday," etc.) **and** (b) describes an action the user needs to take — not just a fact to recall — also add a line to the reserved `reminders.md` page (`docs/db/memory-module.md`), in addition to whatever normal topic page it would otherwise go to (both can be true at once: a fact about a rental property belongs on a topic page, and a recurring deposit deadline for it also belongs in `reminders.md`).
+
+- Format: `- <date-or-recurrence-rule>: <description>`, e.g. `- every 10th: pay the storage unit invoice`.
+- `reminders.md` **accumulates** — append a new line to its `content`, don't replace the page (unlike `upcoming-events.md`). Create the page (frontmatter `slug: reminders`, `title: Reminders`, `created_at` = `updated_at` = now) if it doesn't exist yet; otherwise just append the line and update `updated_at`.
+- Be conservative: most saved facts are not reminders. Don't add a line unless both conditions above are clearly true — a preference, a one-off fact, or an undated plan is not a reminder.
+- This still applies the same automatic-backup step (below) once written.
 
 ## Explicitly out of scope
 

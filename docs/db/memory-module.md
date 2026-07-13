@@ -54,9 +54,27 @@ Filtering is a read-time concern, not a storage concern: `recall` filters its ca
 
 `sync-calendar` owns exactly one reserved page: `upcoming-events.md` (slug `upcoming-events`, fixed — never disambiguated/renamed). Unlike every other page, its `content` is **replaced wholesale** on each sync rather than appended to (see `docs/domain/memory-module.md`'s note on this exception). Frontmatter is otherwise the same shape (`slug`, `title`, `created_at`, `updated_at`; no `tag`, since it's a mixed collection of events rather than a single classifiable topic). If the synced window has zero events, `content` still can't be empty (domain invariant) — write a short "No upcoming events in the next N days." line instead of an empty body.
 
+## Reminders page (v1.4)
+
+`reminders.md` (slug `reminders`, fixed) holds one line per reminder in its `content`, format `- <date-or-recurrence-rule>: <description>`, e.g.:
+
+```markdown
+---
+slug: reminders
+title: Reminders
+created_at: 2026-07-13T09:00:00Z
+updated_at: 2026-07-13T09:00:00Z
+---
+
+- every 10th: pay the storage unit invoice
+- 2026-09-01: renew passport before it expires
+```
+
+Unlike `upcoming-events.md`, this page **accumulates** — `remember` appends a new line for a new reminder rather than replacing the body. `content` still can't be empty (domain invariant); if there are no reminders yet, the page simply doesn't exist until the first one is added (same as any other page's create path).
+
 ## Lifecycle Status
 
-See `specs/epics/memory-module.md` — this stage is checked off with this file as its artifact. (v1.1 update: added the optional `tag` field. v1.3: added the reserved calendar sync page.)
+See `specs/epics/memory-module.md` — this stage is checked off with this file as its artifact. (v1.1 update: added the optional `tag` field. v1.3: added the reserved calendar sync page. v1.4: added the reserved reminders page.)
 
 ## Hand-off
 
