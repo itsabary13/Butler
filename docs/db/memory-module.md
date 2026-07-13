@@ -72,6 +72,10 @@ updated_at: 2026-07-13T09:00:00Z
 
 Unlike `upcoming-events.md`, this page **accumulates** — `remember` appends a new line for a new reminder rather than replacing the body. `content` still can't be empty (domain invariant); if there are no reminders yet, the page simply doesn't exist until the first one is added (same as any other page's create path).
 
+## Reminders also become Calendar events (v1.5)
+
+No new file format — when `remember` writes a `reminders.md` line, it also calls `create_event` (primary calendar) with a matching `recurrenceData` RRULE (e.g. `every 10th` -> `RRULE:FREQ=MONTHLY;BYMONTHDAY=10`), an all-day event, and the reminder's description as the event summary. This is what the daily proactive-digest routine actually reads (via the native Google Calendar connector) — `reminders.md` remains the private record for `recall`, but isn't itself read by the routine. Nothing reminder-related is ever written anywhere public.
+
 ## Lifecycle Status
 
 See `specs/epics/memory-module.md` — this stage is checked off with this file as its artifact. (v1.1 update: added the optional `tag` field. v1.3: added the reserved calendar sync page. v1.4: added the reserved reminders page.)

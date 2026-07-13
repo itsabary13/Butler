@@ -39,6 +39,12 @@ If the new information clearly has **both** (a) a date or recurrence rule (a spe
 - Be conservative: most saved facts are not reminders. Don't add a line unless both conditions above are clearly true — a preference, a one-off fact, or an undated plan is not a reminder.
 - This still applies the same automatic-backup step (below) once written.
 
+## Also create a recurring Calendar event (v1.5)
+
+Whenever you add a line to `reminders.md`, **also** call `create_event` (primary calendar, `itsabary@gmail.com`) with a matching `recurrenceData` RRULE — e.g. "every 10th" -> `RRULE:FREQ=MONTHLY;BYMONTHDAY=10`, "every Monday" -> `RRULE:FREQ=WEEKLY;BYDAY=MO`, a specific one-off date -> no recurrence, just that date. Make it an all-day event (`allDay: true`) with the reminder's description as the event `summary`.
+
+This is what lets the daily proactive-digest routine (`docs/workflow.md`) pick up new reminders automatically — it reads the Calendar via a native connector, not `reminders.md` directly (routines can't access private repos). `reminders.md` stays the durable private record for `recall`; the Calendar event is purely so the routine sees it. Keep both in sync — every reminder gets both a `reminders.md` line and a Calendar event.
+
 ## Explicitly out of scope
 
 Retagging/editing an existing page's tag, standalone update/delete operations, "Link related memories" as its own feature, and any UI beyond this conversational flow — see `specs/epics/memory-module.md`'s out-of-scope lists (v1 and v1.1). Don't implement them speculatively.
