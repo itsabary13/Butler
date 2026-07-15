@@ -11,6 +11,7 @@ Jarvis can remember things you tell it and recall them later — no commands nee
 - **Calendar sync.** Ask Jarvis to sync your calendar (or just ask what's coming up), and it pulls upcoming events from your primary Google Calendar for the next 7 days by default. This doesn't send reminders or alerts — it only refreshes what Jarvis knows, so it can answer when you ask. Re-sync anytime to refresh with new/changed events.
 - **Structured reminders.** When you tell Jarvis something with both a date/recurrence and an action ("every 10th I need to deposit the rent check"), it's captured in a dedicated `reminders.md` list, and Jarvis also creates a matching recurring Google Calendar event for it — so it shows up on your actual calendar too, not just in Jarvis's memory.
 - **Daily proactive digest (outside Claude Code).** A `claude.ai/code/routines` scheduled routine checks today's Google Calendar events (which now includes anything from `reminders.md`, via the Calendar event it creates) and sends you a push notification once a day. It's set up separately from this repo's skills, since routines can't access this project's private data directly — but thanks to reminders also becoming Calendar events, it stays automatically in sync with new reminders without any manual updates.
+- **Flag important/action-needed email.** Ask Jarvis to check your email, and it reviews unread mail in your Primary inbox (skipping promotions, ads, social, and automated notifications), applying real Gmail labels — `Jarvis: Important` and `Jarvis: Needs Action` — to whatever qualifies, plus a summary in the chat itself.
 
 ## How it works, briefly
 
@@ -28,5 +29,5 @@ Memories are stored as a small wiki of Markdown pages — one page per topic, no
 ## Where things live (for reference)
 
 - `specs/epics/memory-module.md` — full scope and decision history
-- `.claude/skills/remember/`, `.claude/skills/recall/`, `.claude/skills/sync-calendar/` — the actual implementation
+- `.claude/skills/remember/`, `.claude/skills/recall/`, `.claude/skills/sync-calendar/`, `.claude/skills/flag-emails/` — the actual implementation
 - `backend/memory-module/wiki/` — your saved memories. Excluded from the main Butler repo (this is personal data, not project scaffolding) but automatically backed up to its own separate private GitHub repo (`butler-memory`) — see `backend/memory-module/README.md` for the restore steps on a new machine.

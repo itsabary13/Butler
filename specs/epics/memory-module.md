@@ -1,6 +1,6 @@
 # Epic: Memory Module
 
-**Status: Shipped** (v1 + v1.1 + v1.2 (auto-push backup) + v1.3 (calendar sync) + v1.4 (reminders page) — see `docs/features/memory-module.md`)
+**Status: Shipped** (v1 + v1.1 + v1.2 (auto-push backup) + v1.3 (calendar sync) + v1.4 (reminders page) + v1.5 (reminders as Calendar events) + v1.6 (email flagging) — see `docs/features/memory-module.md`)
 
 ## Idea
 
@@ -60,6 +60,10 @@ Built as the foundation for a proactive-digest feature (see `docs/workflow.md`'s
 ## v1.5 — Reminders also become Calendar events (removes the hardcoding)
 
 A cleaner fix for "the routine can't read `reminders.md`": `remember` now also creates a **recurring Google Calendar event** (matching RRULE) for every reminder it records, on the user's primary calendar. The routine's existing Calendar check picks these up automatically — no hardcoded reminder text in the routine, no public repo exposure (an intermediate design, a sanitized public index mirroring `reminders.md`, was considered and explicitly user-confirmed, but was blocked twice by a safety mechanism regardless of confirmation and abandoned in favor of this approach, which needs no public writes at all). `reminders.md` remains the durable private record for `recall`; the Calendar event is purely what the routine reads.
+
+## v1.6 — Flag important/action-needed email (new skill, no separate module)
+
+New skill `flag-emails` (`.claude/skills/flag-emails/SKILL.md`), manually invoked. Reviews unread Primary-category Gmail (`is:unread category:primary`, which already excludes Promotions/Social/Updates/Forums) and applies two independent Gmail labels — `Jarvis: Important` and `Jarvis: Needs Action` — based on Claude's judgment, skipping automated/bulk senders that slipped into Primary. No local storage: Gmail's own labels are the state, so this needed no wiki page, no domain/db changes, and no separate module, per the user's explicit choice. Meant to be used both on-demand ("check my email") and folded into the proactive-digest routine(s), if a Gmail connector turns out to be available there (unconfirmed — same "does this connector exist in the routines UI" check as Google Calendar needed earlier).
 
 ## Fixed constraints for v1
 
