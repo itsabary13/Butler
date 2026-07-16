@@ -6,6 +6,10 @@ backend/memory-module/wiki/
 # Personal documents (not project scaffolding) — see backend/document-module/README.md
 backend/document-module/files/
 
+# Voice relay secrets and runtime data — see backend/voice-relay/README.md
+backend/voice-relay/.env
+backend/voice-relay/data/
+
 # OS
 Thumbs.db
 Desktop.ini
