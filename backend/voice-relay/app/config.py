@@ -20,8 +20,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str
     claude_model: str = "claude-sonnet-5"
 
-    # OpenAI (STT + TTS)
-    openai_api_key: str
+    # Local speech models (faster-whisper STT + Piper TTS — no account, no billing)
+    whisper_model_size: str = "small"
+    piper_voice_model_path: str
+    piper_voice_config_path: str = ""
 
     # Telegram
     telegram_bot_token: str

@@ -37,9 +37,21 @@ Exercises `app/telegram.py` in isolation (no FastAPI, no network):
 - Webhook rejects a wrong path secret (401), and rejects a right-secret-wrong-chat_id request (401).
 - **Auth-ordering regression tests** (added during self-review): a non-voice message with the *wrong* secret still gets 401 (proves the secret check runs before any payload-shape branching); a non-voice message with the *correct* secret gets 200 (proves legitimate non-voice traffic is still silently accepted once authenticated, per `docs/api/voice-relay.md`).
 
+## v1.1 addendum — local STT/TTS manual round-trip
+
+Since `app/stt.py`/`app/tts.py` now wrap local models (faster-whisper, Piper) rather than a remote API, they were verified with a one-time manual smoke test instead of automated pytest coverage (same spirit as the Memory module's manual smoke test):
+
+1. Called the real `app.tts.synthesize()` with a throwaway sentence ("Testing the real tts module end to end.") — produced valid Opus/OGG bytes via the piper-to-ffmpeg pipeline.
+2. Fed that exact audio into the real `app.stt.transcribe()` — it correctly returned "testing the real TTS module end to end." (near-exact round trip; case/punctuation differences are expected from STT, not an error).
+3. Confirmed via a throwaway local `.env` that zero `OPENAI_API_KEY` was set anywhere in the environment — proving the OpenAI dependency is fully gone, not just unused.
+4. Separately confirmed `faster-whisper`'s first-run model download and `piper`'s voice download (`scripts/download_piper_voice.py`) both complete successfully and cache locally (gitignored `models/`), including working around a corporate-proxy SSL certificate issue with `pip-system-certs` (documented in `README.md`).
+
+**Result:** the full local speech round-trip works with no OpenAI account, no per-request billing, and no code changes needed in `app/main.py`/`app/anthropic_client.py`/`app/telegram.py`.
+
 ## What's deliberately not tested
 
-- **No live provider integration test.** There's no automated test that actually calls Anthropic, OpenAI, Telegram, or Google Calendar — those require real credentials, which don't exist yet (see Task 43 / the epic's blocked live-verification step). `app/anthropic_client.py`'s tool-use loop, `app/stt.py`, `app/tts.py`, and `app/tools/calendar_tools.py` are exercised only by inspection and by the mocked/stubbed unit tests above, not end-to-end.
+- **No live provider integration test.** There's no automated test that actually calls Anthropic, Telegram, or Google Calendar — those require real credentials, which don't exist yet (see Task 43 / the epic's blocked live-verification step). `app/anthropic_client.py`'s tool-use loop and `app/tools/calendar_tools.py` are exercised only by inspection and by the mocked/stubbed unit tests above, not end-to-end.
+- **`app/stt.py`/`app/tts.py` (local faster-whisper/Piper, v1.1 addendum) have no automated pytest coverage** — they were instead verified with a manual local round-trip (see below), since exercising them in the automated suite would mean downloading multi-hundred-MB models on every test run. `conftest.py` sets a fictional `PIPER_VOICE_MODEL_PATH` only so `Settings()` constructs without error; no test actually loads a model.
 - **The Definition of Done checklist in the plan** (voice message → transcribed → wiki-aware reply → spoken back; calendar event actually created; session follow-up resolves "actually make it 2pm"; restart data-durability; wrong-secret/wrong-chat_id rejection) is only partially covered by the automated suite (the rejection case is). The rest requires the live run in Task 43.
 - **Wiki two-writer concurrency** (`app/wiki_sync.py`'s pull-rebase-retry-once behavior) is implemented but not tested under a real concurrent-write race — acceptable to defer; the retry-once-then-log policy mirrors `remember`'s already-accepted "local save stands, backup push failure is reported not fatal" philosophy.
 

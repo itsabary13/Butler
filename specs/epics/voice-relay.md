@@ -30,11 +30,15 @@ OUT OF SCOPE for v1 (explicitly deferred):
 - Delivering document binaries over voice.
 - Higher-end TTS providers (ElevenLabs, etc.) — revisit once voice personality quality actually matters.
 
+## v1.1 addendum — local STT/TTS, no OpenAI dependency
+
+While setting up real credentials for the live-verification step (Task 43), the user declined to create an OpenAI account — one more pay-per-usage subscription beyond Anthropic (already accepted, since Claude is the whole point of Butler) wasn't worth it. Replaced OpenAI's Whisper/TTS APIs with fully local, free, offline alternatives before any real OpenAI account was created: `faster-whisper` for STT, `piper` for TTS (user's choice over `edge-tts`/`pyttsx3`, prioritizing a genuinely offline dependency over marginally higher voice quality). See `docs/architecture/voice-relay.md`'s own v1.1 addendum for the full technical writeup. No change to scope, requirements, or any other module — `stt.transcribe()`/`tts.synthesize()` kept the same interface.
+
 ## Fixed constraints for v1
 
 - **This is the one exception to "no server process."** Every other Butler capability stays inside Claude Code. This relay exists specifically because genuine voice has no path that avoids a server (confirmed: Claude Code's own `/voice` dictation is terminal-only and doesn't work over Remote Control; there's no text-to-speech anywhere in Claude's consumer products).
 - **Reuses conventions, not code.** The relay does not and cannot call `remember`/`recall`/`sync-calendar` (those are Claude Code skills, inseparable from a Claude Code session). It reimplements the *behavior* against the same file conventions (`docs/db/memory-module.md`), the same relationship `sync-calendar` already has to `remember`.
-- **Billed separately.** This relay makes its own direct Anthropic API calls (pay-per-token, separate from the Claude Code/claude.ai subscription), plus OpenAI (STT/TTS) and Google Calendar API usage.
+- **Billed separately.** This relay makes its own direct Anthropic API calls (pay-per-token, separate from the Claude Code/claude.ai subscription), plus Google Calendar API usage. Speech-to-text/text-to-speech are local (v1.1 addendum above) and incur no per-request billing.
 - **Same privacy rules as the rest of the repo.** No real personal data in anything committed to the public repo; secrets live only in `backend/voice-relay/.env` (gitignored).
 
 ## Lifecycle Status

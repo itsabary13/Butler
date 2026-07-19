@@ -15,7 +15,7 @@ Telegram's webhook target — receives every update sent to the bot.
 ## `GET /health`
 
 - **Auth**: none (used for basic liveness checks, e.g. by a future Phase 2 deployment's health probe).
-- **Response**: `200 {"status": "ok"}` if the process is up. Does not verify downstream provider connectivity (Anthropic/OpenAI/Google/Telegram) — a deliberately minimal liveness check, not a full readiness check.
+- **Response**: `200 {"status": "ok"}` if the process is up. Does not verify downstream provider connectivity (Anthropic/Google/Telegram, or that the local STT/TTS models are loaded) — a deliberately minimal liveness check, not a full readiness check.
 
 ## Explicitly out of scope
 

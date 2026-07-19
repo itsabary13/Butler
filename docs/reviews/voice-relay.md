@@ -49,6 +49,16 @@ Implementation matches `docs/architecture/voice-relay.md`, `docs/domain/voice-re
 
 **Verdict: PASS.** Both findings were High-severity but were self-identified and fixed within the same implementation stage, with regression tests added for each — no open High or Medium findings remain. The one accepted residual risk (single-secret + guessable-chat_id boundary) is a known, documented v1 limitation, not a defect.
 
+## v1.1 addendum — local STT/TTS swap
+
+Reviewed the OpenAI-to-local-model swap (`docs/architecture/voice-relay.md`'s v1.1 addendum): `app/stt.py`, `app/tts.py`, `app/config.py`, `requirements.txt`, `.env.example`, `Dockerfile`, `scripts/download_piper_voice.py`.
+
+Neither of this stage's two prior findings is reopened: the swap doesn't touch `app/tools/wiki_tools.py`'s slug validation, nor `app/main.py`'s webhook auth ordering — both are unrelated modules. No new network surface or secret was introduced (`faster-whisper`/`piper` run in-process against locally-cached model files; `scripts/download_piper_voice.py` is one-time and manual, same non-request-path pattern as `google_oauth_setup.py`). `PIPER_VOICE_MODEL_PATH`/`WHISPER_MODEL_SIZE` are configuration, not secrets, and are documented plainly in `.env.example`.
+
+One low note: `app/tts.py` shells out to `ffmpeg` via `subprocess.run(..., check=True)` with fixed, hardcoded arguments (no user input reaches the command line — only `wav_bytes` piped via `stdin`), so there's no injection surface; a missing/broken `ffmpeg` install will raise `FileNotFoundError`/`CalledProcessError` and surface as a normal request failure (caught by `main.py`'s existing try/except around `_handle_voice_message`), not a silent failure.
+
+No new findings. **Verdict: PASS** still holds.
+
 ## Lifecycle Status
 
 See `specs/epics/voice-relay.md` — this stage is checked off with this file as its artifact.

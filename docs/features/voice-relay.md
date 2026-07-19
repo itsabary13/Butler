@@ -24,7 +24,7 @@ Right now it runs locally on your own machine (or through a temporary tunnel lik
 - **Single user only.** It's locked to one Telegram chat (yours) — there's no multi-user support.
 - **Calendar is create-only.** No update or delete by voice yet, matching the same limitation Jarvis's calendar sync already has.
 - **No document contents over voice.** It can confirm a document exists but can't read it aloud or send the file itself.
-- **Billed separately from your Claude Code subscription.** This service makes its own direct API calls (to Anthropic, OpenAI for speech, and Google Calendar), so it has its own usage cost outside your normal Claude Code/claude.ai plan.
+- **Billed separately from your Claude Code subscription.** This service makes its own direct API calls to Anthropic and Google Calendar, so it has its own usage cost outside your normal Claude Code/claude.ai plan. Speech-to-text and text-to-speech run fully locally (no OpenAI or other speech-provider account, no per-request cost for either).
 
 ## Where things live (for reference)
 

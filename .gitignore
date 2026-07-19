@@ -9,6 +9,7 @@ backend/document-module/files/
 # Voice relay secrets and runtime data — see backend/voice-relay/README.md
 backend/voice-relay/.env
 backend/voice-relay/data/
+backend/voice-relay/models/
 
 # OS
 Thumbs.db
