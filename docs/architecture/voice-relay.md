@@ -70,6 +70,15 @@ While setting up real credentials for Task 43 (live verification), the user decl
 - Verified locally end-to-end (piper → ffmpeg → Opus bytes → faster-whisper transcription) with zero `OPENAI_API_KEY` anywhere — see `docs/tests/voice-relay.md`.
 - No change to `app/main.py`/`app/anthropic_client.py`/`app/telegram.py` — `stt.transcribe()`/`tts.synthesize()` keep the same interface, so this was a pure implementation swap behind an unchanged boundary.
 
+## v1.2 addendum — Phase 2: VPS deployment
+
+Originally deferred ("Phase 2, a separate, future epic", `specs/epics/voice-relay.md`), moved up when a corporate laptop's network turned out to block `api.telegram.org` outright (a proxy policy denying the "Chat/Instant Messaging" category) — blocking Phase 1's own local verification, not just incidental to it. A VPS has its own unrestricted connection, so it resolves this permanently rather than working around it network-by-network.
+
+- **Host**: DigitalOcean droplet (1 GB/1 vCPU + a 1GB swap file, `fra1`), Ubuntu 24.04 — swap absorbs faster-whisper's transcription-time memory spike, avoiding the cost of a 2GB droplet for RAM that would mostly sit idle. Resizable later if real usage shows it's too tight.
+- **Deployment**: Docker Compose, two services — the existing `Dockerfile`'s image (`voice-relay`) and `caddy:2` as a reverse proxy providing automatic Let's Encrypt TLS for the Telegram webhook's required HTTPS endpoint.
+- **Persistence**: session store (`data/`), the wiki/document private-repo clones, and the faster-whisper model cache all live outside the container as volumes/bind mounts, so a redeploy (`docker compose up -d --build`) doesn't lose them.
+- **No `app/` code changes** — `wiki_dir()`/`docs_dir()`/`DB_PATH` already resolve correctly given the right `.env` values (absolute container paths instead of local-dev-relative ones); this was purely a hosting/ops change with a new `.env` shape, not a design change. See `backend/voice-relay/DEPLOY.md` for the concrete runbook.
+
 ## Lifecycle Status
 
 See `specs/epics/voice-relay.md` — this stage is checked off with this file as its artifact.

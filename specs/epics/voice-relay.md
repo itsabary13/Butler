@@ -41,6 +41,10 @@ While setting up real credentials for the live-verification step (Task 43), the 
 - **Billed separately.** This relay makes its own direct Anthropic API calls (pay-per-token, separate from the Claude Code/claude.ai subscription), plus Google Calendar API usage. Speech-to-text/text-to-speech are local (v1.1 addendum above) and incur no per-request billing.
 - **Same privacy rules as the rest of the repo.** No real personal data in anything committed to the public repo; secrets live only in `backend/voice-relay/.env` (gitignored).
 
+## v1.2 addendum — Phase 2 underway
+
+Phase 2 (VPS hosting) was explicitly deferred as "a separate, future epic" above, but moved up sooner than planned: setting up real Telegram credentials for Task 43's live verification surfaced that the machine being used sits behind a corporate proxy that blocks `api.telegram.org` outright, which would block the relay's Telegram traffic entirely, not just complicate testing. Rather than work around that per-network, moving straight to a DigitalOcean-hosted deployment resolves it permanently and was coming "soon" regardless. See `docs/architecture/voice-relay.md`'s v1.2 addendum and `backend/voice-relay/DEPLOY.md` for the deployment details. No scope, requirements, or domain/API/DB changes — same component, different hosting.
+
 ## Lifecycle Status
 
 - [x] Epic / User Stories / Functional Requirements — requirements-analyst — `specs/stories/voice-relay/`

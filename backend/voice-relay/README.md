@@ -15,10 +15,10 @@ A small FastAPI service that:
 
 ## Phase 1 vs. Phase 2
 
-Phase 1 (this): prove the mechanism works — run locally with a tunnel (e.g. ngrok) for the Telegram webhook. Not 24/7 hosted yet.
-Phase 2 (later, not built yet): deploy this same code (the `Dockerfile` already exists for this) to a VPS for true always-on availability.
+Phase 1: prove the mechanism works — run locally with a tunnel (e.g. ngrok) for the Telegram webhook. Not 24/7 hosted.
+Phase 2 (underway — see `DEPLOY.md`): the same code, deployed to a DigitalOcean droplet via Docker Compose + Caddy for true always-on availability. Moved to Phase 2 sooner than originally planned because a corporate network's proxy policy blocked `api.telegram.org` outright, which would have blocked Phase 1 testing entirely from that machine — a VPS with its own unrestricted connection sidesteps that permanently. Follow `DEPLOY.md` for the concrete runbook.
 
-## Setup
+## Setup (local/Phase 1)
 
 1. `cp .env.example .env` and fill in real values — see comments in that file for what each one is and where to get it.
 2. `pip install -r requirements.txt`
