@@ -42,15 +42,17 @@ def is_authorized(secret_from_path: str, secret_token_header: str | None, chat_i
 
 
 def extract_voice_message(update: dict) -> dict | None:
-    """Returns {chat_id, file_id} if this update is a voice message from
-    a chat, else None (e.g. a non-voice message, or an update type we
-    don't handle)."""
+    """Returns {chat_id, file_id, duration} if this update is a voice
+    message from a chat, else None (e.g. a non-voice message, or an update
+    type we don't handle). duration is Telegram's own reported length in
+    whole seconds."""
     message = update.get("message")
     if not message or "voice" not in message:
         return None
     return {
         "chat_id": message["chat"]["id"],
         "file_id": message["voice"]["file_id"],
+        "duration": message["voice"].get("duration", 0),
     }
 
 

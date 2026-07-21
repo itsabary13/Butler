@@ -79,9 +79,7 @@ Rules:
 """
 
 
-def get_reply(chat_id: str, user_text: str) -> str:
-    resume_id = session_store.get_session_id(chat_id)
-
+def _build_command(user_text: str, resume_id: str | None) -> list[str]:
     command = [
         settings.claude_binary,
         "-p", user_text,
@@ -94,7 +92,10 @@ def get_reply(chat_id: str, user_text: str) -> str:
         command += ["--model", settings.claude_code_model]
     if resume_id:
         command += ["--resume", resume_id]
+    return command
 
+
+def _run_claude(command: list[str]) -> dict:
     try:
         result = subprocess.run(
             command,
@@ -111,9 +112,24 @@ def get_reply(chat_id: str, user_text: str) -> str:
         raise ClaudeCodeError(f"claude exited {result.returncode}: {result.stderr[-500:]}")
 
     try:
-        payload = json.loads(result.stdout)
+        return json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise ClaudeCodeError(f"claude returned non-JSON output: {result.stdout[-500:]}") from exc
+
+
+def get_reply(chat_id: str, user_text: str) -> str:
+    resume_id = session_store.get_session_id(chat_id)
+
+    try:
+        payload = _run_claude(_build_command(user_text, resume_id))
+    except ClaudeCodeError:
+        if resume_id is None:
+            raise
+        # A stored session id can go stale even within our own TTL — e.g. a
+        # redeploy wipes Claude Code's own session storage. Fall back to a
+        # fresh session once rather than failing the whole turn.
+        logger.warning("resume failed for chat_id=%s (session_id=%s), retrying fresh", chat_id, resume_id)
+        payload = _run_claude(_build_command(user_text, resume_id=None))
 
     reply_text = payload.get("result")
     new_session_id = payload.get("session_id")

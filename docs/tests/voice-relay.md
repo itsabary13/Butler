@@ -9,7 +9,7 @@ Unlike Memory/Document (natural-language-instructed skills), the voice relay is 
 cd backend/voice-relay
 python -m pytest tests/ -v
 ```
-**Result:** 34/34 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
+**Result:** 38/38 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
 
 ### `test_stt.py` (2 tests)
 
@@ -33,13 +33,14 @@ Exercises `app/telegram.py` in isolation (no FastAPI, no network):
 - `verify_webhook_secret` / `is_authorized` — correct secret+chat_id passes; wrong path secret, missing header, and wrong chat_id each fail.
 - `extract_voice_message` — a text-only message returns `None`; a voice message returns `{chat_id, file_id}`; a payload with no `message` key returns `None`.
 
-### `test_main_app.py` (5 tests)
+### `test_main_app.py` (7 tests)
 
 `fastapi.testclient.TestClient` against the real `app.main.app` (env vars stubbed in `conftest.py` with fictional placeholder values — no real credentials anywhere in the test suite):
 
 - `GET /health` returns `{"status": "ok"}`.
 - Webhook rejects a wrong path secret (401), and rejects a right-secret-wrong-chat_id request (401).
 - **Auth-ordering regression tests** (added during self-review): a non-voice message with the *wrong* secret still gets 401 (proves the secret check runs before any payload-shape branching); a non-voice message with the *correct* secret gets 200 (proves legitimate non-voice traffic is still silently accepted once authenticated, per `docs/api/voice-relay.md`).
+- **Sub-1-second voice messages are dropped before scheduling any work** (`_process_voice_message` monkeypatched to a call-recorder — a `duration: 0` message never reaches it; a `duration: 3` message does), added after live testing showed an accidental tap producing an empty transcript reaching `claude` with nothing to say.
 
 ## v1.1 addendum — local STT/TTS manual round-trip
 
@@ -52,7 +53,7 @@ Since `app/stt.py`/`app/tts.py` now wrap local models (faster-whisper, Piper) ra
 
 **Result:** the full local speech round-trip works with no OpenAI account, no per-request billing, and no code changes needed in `app/main.py`/`app/anthropic_client.py`/`app/telegram.py`.
 
-## v2 addendum — `test_claude_code_client.py` (4 tests)
+## v2 addendum — `test_claude_code_client.py` (6 tests)
 
 Added when `app/anthropic_client.py` (direct Anthropic API tool-use loop) was replaced by `app/claude_code_client.py` (headless `claude -p`, subscription-billed — `docs/architecture/voice-relay.md`'s v2 addendum). Mocks `subprocess.run` — never shells out to a real `claude` binary:
 
@@ -60,6 +61,7 @@ Added when `app/anthropic_client.py` (direct Anthropic API tool-use loop) was re
 - A chat with an existing (non-expired) session passes `--resume <session_id>`.
 - A non-zero exit from `claude` raises `ClaudeCodeError` rather than propagating a raw `CalledProcessError` or silently returning empty text.
 - A response JSON missing the `result` field also raises `ClaudeCodeError`, rather than replying with `None`/empty audio.
+- **Stale-`--resume` fallback** (added after live testing hit "No conversation found with session ID" — a redeploy wipes Claude Code's own session storage even though our TTL still considered the row valid): a `--resume` failure retries once with a fresh session rather than failing the turn; a failure on the fresh retry too still raises `ClaudeCodeError`.
 
 `app/mcp_server.py`'s five `@mcp.tool()` wrappers are deliberately not separately tested — each is a thin pass-through to an `app/tools/*` function already covered by `test_wiki_tools.py` or reviewed by inspection (`calendar_tools.py`, `document_tools.py`); testing the wrapper would just re-assert the same behavior through an extra layer.
 

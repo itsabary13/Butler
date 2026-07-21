@@ -68,3 +68,38 @@ def test_get_reply_raises_when_result_missing(monkeypatch):
 
     with pytest.raises(claude_code_client.ClaudeCodeError):
         claude_code_client.get_reply("12345", "hello")
+
+
+def test_get_reply_falls_back_to_fresh_session_when_resume_fails(monkeypatch):
+    # A stored session id can go stale (e.g. a redeploy wipes Claude Code's
+    # own session storage) even within our TTL — should retry fresh, not fail.
+    session_store.set_session_id("12345", "stale-session")
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        if "--resume" in command:
+            return _FakeCompletedProcess("", returncode=1, stderr="No conversation found with session ID: stale-session")
+        return _FakeCompletedProcess(json.dumps({"result": "Sure.", "session_id": "new-session"}))
+
+    monkeypatch.setattr(claude_code_client.subprocess, "run", fake_run)
+
+    reply = claude_code_client.get_reply("12345", "hello again")
+
+    assert reply == "Sure."
+    assert len(calls) == 2
+    assert "--resume" in calls[0]
+    assert "--resume" not in calls[1]
+    assert session_store.get_session_id("12345") == "new-session"
+
+
+def test_get_reply_raises_when_fresh_retry_also_fails(monkeypatch):
+    session_store.set_session_id("12345", "stale-session")
+
+    def fake_run(command, **kwargs):
+        return _FakeCompletedProcess("", returncode=1, stderr="boom")
+
+    monkeypatch.setattr(claude_code_client.subprocess, "run", fake_run)
+
+    with pytest.raises(claude_code_client.ClaudeCodeError):
+        claude_code_client.get_reply("12345", "hello")

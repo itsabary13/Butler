@@ -39,10 +39,10 @@ def test_extract_voice_message_returns_none_for_text_message():
     assert telegram.extract_voice_message(update) is None
 
 
-def test_extract_voice_message_returns_chat_id_and_file_id():
-    update = {"message": {"chat": {"id": 42}, "voice": {"file_id": "abc123"}}}
+def test_extract_voice_message_returns_chat_id_file_id_and_duration():
+    update = {"message": {"chat": {"id": 42}, "voice": {"file_id": "abc123", "duration": 5}}}
     result = telegram.extract_voice_message(update)
-    assert result == {"chat_id": 42, "file_id": "abc123"}
+    assert result == {"chat_id": 42, "file_id": "abc123", "duration": 5}
 
 
 def test_extract_voice_message_handles_missing_message_key():

@@ -17,6 +17,8 @@ logger = logging.getLogger("voice_relay.main")
 
 app = FastAPI(title="Butler Voice Relay")
 
+MIN_VOICE_DURATION_SECONDS = 1
+
 
 @app.get("/health")
 async def health():
@@ -53,6 +55,16 @@ async def telegram_webhook(
         # (docs/api/voice-relay.md).
         logger.warning("rejected webhook call from non-owner chat_id=%s", chat_id)
         return JSONResponse({}, status_code=401)
+
+    if voice["duration"] < MIN_VOICE_DURATION_SECONDS:
+        # Almost always an accidental tap, not real speech — an empty/near-
+        # empty transcript just reaches claude with nothing to say. Drop it
+        # silently, same treatment as a non-voice message.
+        logger.info(
+            "dropped voice message under %ss (chat_id=%s, duration=%ss)",
+            MIN_VOICE_DURATION_SECONDS, chat_id, voice["duration"],
+        )
+        return JSONResponse({})
 
     # Ack Telegram immediately and do the real work in the background — the
     # full pipeline (STT + the claude subprocess call + TTS) can easily run
