@@ -41,7 +41,7 @@ Implementation matches `docs/architecture/voice-relay.md`, `docs/domain/voice-re
 | Item | Status |
 |---|---|
 | Specification | Done — `specs/epics/voice-relay.md`, `specs/stories/voice-relay/*.md` |
-| Acceptance criteria | Done (automated portion) — `docs/tests/voice-relay.md`; live portion blocked on real credentials (Task 43) |
+| Acceptance criteria | Done — `docs/tests/voice-relay.md` (automated) and Task 43's live verification (voice/text conversation, memory save/recall, document upload, Google Calendar event creation, all confirmed against the real Phase 2 deployment) |
 | Architecture updates | Done — `docs/architecture/voice-relay.md`, `docs/domain/voice-relay.md`, `docs/api/voice-relay.md`, `docs/db/voice-relay.md`, `docs/ui/voice-relay.md` |
 | Tests | Done — `docs/tests/voice-relay.md` (28/28 automated tests pass) |
 | Documentation | **Not yet** — expected; `technical-writer` runs next |

@@ -1,6 +1,6 @@
 # Epic: Voice Relay
 
-**Status: In progress** (Phase 1) — code, tests, review, and docs complete; live end-to-end verification against real credentials (Telegram bot, Anthropic/OpenAI keys, Google OAuth) is the one remaining step before this can be marked Shipped.
+**Status: Shipped** — live on the Phase 2 VPS (`jarvis.irenets.online`), Task 43's end-to-end verification against real credentials complete: voice and text conversation, memory save/recall, document upload, and Google Calendar event creation all confirmed working through the real deployment. See the v1.1–v1.4 addenda below for what changed since the original v1 design (local STT/TTS, VPS hosting, subscription billing instead of pay-per-token, text/document input).
 
 ## Idea
 
