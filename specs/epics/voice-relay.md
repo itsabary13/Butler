@@ -58,6 +58,15 @@ Extended beyond "voice is the only supported input" (original IN SCOPE list abov
 - No scope change to the Calendar/Reminder/Memory tools themselves, and voice remains fully supported unchanged — this only widens which message *types* the webhook accepts.
 - See `docs/architecture/voice-relay.md`'s v3 addendum for the full design and `docs/reviews/voice-relay.md` for a path-traversal finding (and fix) in the new document-saving code.
 
+## v1.5 addendum — documents are read, named, categorized, and made askable
+
+v1.4's document save was metadata-only: `find_document` could only ever match a document's *title* (the Telegram caption, or a generic fallback like `"photo"` if none was given) — never its actual content. Live testing surfaced this directly: an uncaptioned photo of theater tickets was unfindable by anything describing what was actually in it. Extended so uploads are genuinely read, not just filed:
+
+- **Auto-naming and categorization**: after the initial placeholder save, a second, separate `claude` invocation (`app/claude_code_client.py`'s `enrich_document`) reads the file's actual content and calls a new `categorize_document` tool to rename it to a content-derived title and tag it with a short category ("ticket," "receipt," "ID," etc.) — no caption required.
+- **Made askable, not just findable**: the same pass saves anything genuinely worth remembering about the content into the wiki via the existing `save_memory` tool, so "what does my Habima ticket say" is answerable through normal recall, not just a title-substring match.
+- **New filesystem access, tightly scoped**: this is the first time the headless process gets any `Read` access at all — the conversational path (voice/text) deliberately still has none. Scoped via `--add-dir` to just the docs directory, with a narrower `--allowedTools` than conversation (`Read` + `categorize_document` + `save_memory` only — no calendar/reminders/find_document) and no `--resume` (not a chat turn). See `docs/architecture/voice-relay.md`'s v4 addendum and `docs/reviews/voice-relay.md` for the full security reasoning.
+- **Schema note**: adds an optional `category` frontmatter field to the shared `docs/db/document-module.md` sidecar format (used by `add-document` too, not just this relay) — see that doc's own addendum.
+
 ## Lifecycle Status
 
 - [x] Epic / User Stories / Functional Requirements — requirements-analyst — `specs/stories/voice-relay/`

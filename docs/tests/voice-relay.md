@@ -9,7 +9,7 @@ Unlike Memory/Document (natural-language-instructed skills), the voice relay is 
 cd backend/voice-relay
 python -m pytest tests/ -v
 ```
-**Result:** 58/58 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
+**Result:** 66/66 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
 
 ### `test_stt.py` (2 tests)
 
@@ -65,7 +65,7 @@ Added when `app/anthropic_client.py` (direct Anthropic API tool-use loop) was re
 - A response JSON missing the `result` field also raises `ClaudeCodeError`, rather than replying with `None`/empty audio.
 - **Stale-`--resume` fallback** (added after live testing hit "No conversation found with session ID" — a redeploy wipes Claude Code's own session storage even though our TTL still considered the row valid): a `--resume` failure retries once with a fresh session rather than failing the turn; a failure on the fresh retry too still raises `ClaudeCodeError`.
 
-`app/mcp_server.py`'s five `@mcp.tool()` wrappers are deliberately not separately tested — each is a thin pass-through to an `app/tools/*` function already covered by `test_wiki_tools.py` or reviewed by inspection (`calendar_tools.py`, `document_tools.py`); testing the wrapper would just re-assert the same behavior through an extra layer.
+`app/mcp_server.py`'s `@mcp.tool()` wrappers are deliberately not separately tested — each is a thin pass-through to an `app/tools/*` function already covered by `test_wiki_tools.py`/`test_document_tools.py` or reviewed by inspection (`calendar_tools.py`); testing the wrapper would just re-assert the same behavior through an extra layer. (This now includes `categorize_document`, added in the v3/v4 addenda below.)
 
 ## v3 addendum — `test_document_tools.py` (7 tests), text/document webhook routing
 
@@ -74,11 +74,18 @@ Added for v1.4 (text and document input, `specs/epics/voice-relay.md`):
 - **`test_document_tools.py`**: `save_document` against a `tmp_path` docs directory (`monkeypatch`ed, never the real `backend/document-module/files/`) — infers a title from the filename when no caption is given; uses the caption as the title when given; disambiguates a slug collision with a `-2` qualifier rather than overwriting; a saved document is immediately findable via `find_document`. **Security regression test** (found during this addendum's self-review, see `docs/reviews/voice-relay.md`): `test_save_document_rejects_unsafe_extension`, parametrized over three traversal-shaped filenames (e.g. `evil.txt/../../root/.ssh/authorized_keys`) — asserts every file the call writes stays a direct child of the docs directory, none escape it.
 - **`test_main_app.py`/`test_webhook_auth.py`**: covered above — text/document extraction and webhook routing, all against mocked processors (no real `claude`/Telegram calls).
 
+## v4 addendum — document content reading (`categorize_document`, `enrich_document`)
+
+Added for v1.5 (`specs/epics/voice-relay.md`) — documents/photos are now actually read, not just filed by title:
+
+- **`test_document_tools.py`** (+6 tests): `categorize_document` — renames `<slug>.<ext>`/`<slug>.md` to a content-derived slug and adds an optional `category` field, preserving `original_filename`/`added_at`/file bytes across the rename; omits the `category` line entirely when none is given; updates the sidecar in place (no rename) when the new title slugifies to the same value; disambiguates a collision with a *different* existing document the same way a fresh save does; returns `{"error": ...}` for an unknown slug rather than raising; a re-categorized document is immediately findable by its new category via `find_document`.
+- **`test_claude_code_client.py`** (+2 tests): `enrich_document` — asserts the exact `--add-dir` value (the file's own parent directory only) and that `--allowedTools` includes `Read`/`categorize_document` but excludes `create_calendar_event` (narrower than the conversational allowlist), and that no `--resume` flag is passed (not a chat turn); a `claude` failure falls back to a plain "couldn't read its content automatically" message rather than raising out to the caller (a document upload's placeholder save should never be lost just because the enrichment pass failed).
+
 ## What's deliberately not tested
 
-- **No live provider integration test.** There's no automated test that actually invokes the real `claude` CLI, Telegram, or Google Calendar — those require real credentials/subscription auth, which don't exist yet (see Task 43 / the epic's blocked live-verification step). `app/claude_code_client.py`'s subprocess invocation and `app/tools/calendar_tools.py` are exercised only by inspection and by the mocked/stubbed unit tests above, not end-to-end.
+- **No live provider integration test in the automated suite.** There's no `pytest` test that actually invokes the real `claude` CLI, Telegram, or Google Calendar — `app/claude_code_client.py`'s subprocess invocation, `app/tools/calendar_tools.py`, and `enrich_document`'s `Read`/vision path are exercised only by inspection and by the mocked/stubbed unit tests above within this suite. (Real end-to-end verification against live credentials did happen, manually, as Task 43 — now complete, `specs/epics/voice-relay.md`'s Status — it just isn't part of what `pytest tests/` runs.)
 - **`app/stt.py`/`app/tts.py` (local faster-whisper/Piper, v1.1 addendum) have no automated pytest coverage** — they were instead verified with a manual local round-trip (see below), since exercising them in the automated suite would mean downloading multi-hundred-MB models on every test run. `conftest.py` sets a fictional `PIPER_VOICE_MODEL_PATH` only so `Settings()` constructs without error; no test actually loads a model.
-- **The Definition of Done checklist in the plan** (voice message → transcribed → wiki-aware reply → spoken back; calendar event actually created; session follow-up resolves "actually make it 2pm"; restart data-durability; wrong-secret/wrong-chat_id rejection) is only partially covered by the automated suite (the rejection case is). The rest requires the live run in Task 43.
+- **The Definition of Done checklist in the plan** (voice message → transcribed → wiki-aware reply → spoken back; calendar event actually created; session follow-up resolves "actually make it 2pm"; restart data-durability; wrong-secret/wrong-chat_id rejection) is only partially covered by the automated suite (the rejection case is) — the rest was confirmed manually via Task 43's live run against the real deployment, not by `pytest`.
 - **Wiki two-writer concurrency** (`app/wiki_sync.py`'s pull-rebase-retry-once behavior) is implemented but not tested under a real concurrent-write race — acceptable to defer; the retry-once-then-log policy mirrors `remember`'s already-accepted "local save stands, backup push failure is reported not fatal" philosophy.
 
 ## Lifecycle Status

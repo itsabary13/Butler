@@ -91,6 +91,21 @@ This is the same class of finding as the original review's wiki-slug path traver
 
 No other new findings. **Verdict: PASS** still holds.
 
+## v4 addendum — document content reading (`enrich_document`, `categorize_document`)
+
+Reviewed the v1.5 change (`docs/architecture/voice-relay.md`'s v4 addendum): `app/claude_code_client.py`'s `enrich_document`, `app/tools/document_tools.py`'s `categorize_document`, `app/mcp_server.py`'s new tool registration, `app/main.py`'s updated `_handle_document_message`.
+
+This is a genuine, deliberate widening of the attack surface — the first time the headless process gets any filesystem `Read` access — so it got the most scrutiny of anything in this epic since the original two High findings.
+
+- **Scoping verified**: `enrich_document` passes `--add-dir <file_path.parent>` (the docs directory only) and `--allowedTools "Read,mcp__butler__categorize_document,mcp__butler__save_memory"` — confirmed neither the app source directory (`/app`) nor the wiki directory (`/data/wiki`) is ever passed to `--add-dir` for this call, and the conversational path's `ALLOWED_TOOLS`/`get_reply` is completely untouched (still zero `Read`, still the original 5 MCP tools). `test_enrich_document_scopes_read_to_the_files_own_directory` asserts the exact `--add-dir` value and that `Read`/`categorize_document` are present while `create_calendar_event` is absent from the allowlist.
+- **No secret file to leak even in the worst case**: confirmed by inspecting `docker-compose.yml` directly — `.env` appears only under `env_file:` for both services, never under `volumes:`, so it's never mounted into the container filesystem; Compose injects it purely as process environment variables at container start. `Read` has no file-based mechanism to reach process environment variables. This means even a hypothetical scoping bug in `--add-dir` couldn't leak `CLAUDE_CODE_OAUTH_TOKEN`/`TELEGRAM_BOT_TOKEN`/etc. via this path — belt-and-suspenders on top of the `--add-dir` scoping itself, not a substitute for it.
+- **`categorize_document` is safe to expose as an MCP tool where `save_document` wasn't**: it takes a `slug` (an existing filename reference) and `title`/`category` strings, never raw file bytes — the byte-transfer constraint that forced `save_document` to bypass `claude` entirely doesn't apply here.
+- **`categorize_document`'s rename logic reuses `save_document`'s already-reviewed disambiguation rule** (numeric qualifier on collision with a *different* document), with one correctness addition: renaming to a slug that happens to coincide with the document's own current slug is correctly treated as "no collision," not an infinite/off-by-one disambiguation loop — covered by `test_categorize_document_updates_in_place_when_title_unchanged`.
+- **Indirect prompt injection, residual/accepted**: an uploaded document's content reaches the model as untrusted input, same category of risk as a voice transcript or typed message already carries. A crafted document could attempt to make the model call `save_memory`/`categorize_document` with attacker-chosen content. Bounded by the tight `--allowedTools` for this pass (no calendar/reminders/find_document, and critically no `Bash`) — worst case is a spurious or misleading memory/document label, not filesystem or credential exposure. Not a new class of risk introduced by this addendum, just a new instance of one the conversational path already accepted.
+- **Frontmatter field values (`title`, `category`) aren't newline-sanitized before being written as `key: value` lines** — same pre-existing pattern as `wiki_tools.py`'s `save_memory` (`title` there has the identical property, already reviewed and accepted in the original pass). An embedded newline could in principle inject an extra frontmatter-looking line into the *same* sidecar file — a data-integrity nuisance (a malformed/confusing sidecar), not a path-traversal or cross-file issue, since `parse_page` never treats content from one file as a path into another. Consistent with, not worse than, the existing accepted risk profile; not treated as a new finding.
+
+No High or Medium findings. **Verdict: PASS** still holds.
+
 ## Lifecycle Status
 
 See `specs/epics/voice-relay.md` — this stage is checked off with this file as its artifact.

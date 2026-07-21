@@ -42,6 +42,10 @@ Scanned copy of the user's passport.
 
 `find-document` scans `<slug>.md` sidecars (cheap — just frontmatter/title, no need to open every binary), identifies the candidate(s), then opens the actual `<slug>.<ext>` file only for the matching document(s) — mirroring Memory's `recall` pattern of scanning cheaply before reading in full.
 
+## v1.1 addendum — optional `category` field (added by voice-relay's v1.5)
+
+`backend/voice-relay`'s Telegram document/photo uploads added an optional `category` frontmatter field (a short word or two — "ticket," "receipt," "ID," etc.) to this same shared sidecar format, populated automatically once the relay actually reads a document's content (`docs/architecture/voice-relay.md`'s v4 addendum, `specs/epics/voice-relay.md`'s v1.5). Not a required field — `add-document`-saved documents (and any existing ones) simply omit it, same as before. `find-document`/`find_document` now also match against it when present.
+
 ## Lifecycle Status
 
 See `specs/epics/document-module.md` — this stage is checked off with this file as its artifact.

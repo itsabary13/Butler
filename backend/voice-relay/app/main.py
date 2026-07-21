@@ -8,7 +8,7 @@ from fastapi import BackgroundTasks, FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 
 from app import stt, telegram, tts, wiki_sync
-from app.claude_code_client import get_reply
+from app.claude_code_client import enrich_document, get_reply
 from app.config import settings
 from app.tools import document_tools, wiki_tools
 
@@ -175,15 +175,23 @@ async def _process_document_message(chat_id: str, file_id: str, filename: str, c
 
 
 async def _handle_document_message(chat_id: str, file_id: str, filename: str, caption: str | None) -> None:
-    """Deterministic save (app.tools.document_tools.save_document), not
-    claude-driven — file bytes can't reasonably flow through an MCP
-    tool-call's JSON arguments, so there's nothing for claude to do here."""
+    """Two-phase save: a deterministic placeholder save
+    (app.tools.document_tools.save_document — file bytes can't reasonably
+    flow through an MCP tool-call's JSON arguments, so there's nothing for
+    claude to do for this part), then claude_code_client.enrich_document
+    reads the actual saved file and renames/categorizes it + saves anything
+    worth remembering (v1.5 addendum, docs/architecture/voice-relay.md)."""
     docs_dir = document_tools.docs_dir()
+    wiki_dir = wiki_tools.wiki_dir()
     wiki_sync.sync_before(docs_dir)
+    wiki_sync.sync_before(wiki_dir)
 
     file_bytes = await telegram.download_file(file_id)
     result = document_tools.save_document(filename, file_bytes, title=caption)
 
-    wiki_sync.sync_after(docs_dir, f"voice-relay: document upload from chat {chat_id}")
+    summary = enrich_document(result["path"], result["slug"], result["title"], caption)
 
-    await telegram.send_text_reply(chat_id, f'Saved "{result["title"]}".')
+    wiki_sync.sync_after(docs_dir, f"voice-relay: document upload from chat {chat_id}")
+    wiki_sync.sync_after(wiki_dir, f"voice-relay: document upload from chat {chat_id}")
+
+    await telegram.send_text_reply(chat_id, summary)

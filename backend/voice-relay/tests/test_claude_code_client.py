@@ -3,6 +3,7 @@ parsing against a mocked `claude` process — never shells out to a real
 `claude` binary (that only happens in real live-verification, Task 43)."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -103,3 +104,36 @@ def test_get_reply_raises_when_fresh_retry_also_fails(monkeypatch):
 
     with pytest.raises(claude_code_client.ClaudeCodeError):
         claude_code_client.get_reply("12345", "hello")
+
+
+def test_enrich_document_scopes_read_to_the_files_own_directory(monkeypatch):
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        return _FakeCompletedProcess(json.dumps({"result": "Saved as Habima Theater Tickets."}))
+
+    monkeypatch.setattr(claude_code_client.subprocess, "run", fake_run)
+
+    file_path = Path("/data/docs/photo.jpg")
+    summary = claude_code_client.enrich_document(file_path, "photo", "photo", "my theater tickets")
+
+    assert summary == "Saved as Habima Theater Tickets."
+    command = captured["command"]
+    assert "--resume" not in command  # not a chat turn
+    assert command[command.index("--add-dir") + 1] == str(file_path.parent)
+    allowed_tools = command[command.index("--allowedTools") + 1]
+    assert "Read" in allowed_tools
+    assert "mcp__butler__categorize_document" in allowed_tools
+    assert "mcp__butler__create_calendar_event" not in allowed_tools  # narrower than the conversational allowlist
+
+
+def test_enrich_document_falls_back_to_generic_message_on_failure(monkeypatch):
+    def fake_run(command, **kwargs):
+        return _FakeCompletedProcess("", returncode=1, stderr="claude crashed")
+
+    monkeypatch.setattr(claude_code_client.subprocess, "run", fake_run)
+
+    summary = claude_code_client.enrich_document(Path("/data/docs/x.pdf"), "x", "x", None)
+
+    assert "couldn't read" in summary.lower()

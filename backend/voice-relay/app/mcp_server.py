@@ -49,8 +49,14 @@ def create_calendar_event(
 
 @mcp.tool()
 def find_document(query: str) -> list:
-    """Look up stored documents by title/filename (metadata only — you cannot read or deliver the actual file content over voice)."""
+    """Look up stored documents by title/filename/category (metadata only — you cannot read or deliver the actual file content over voice)."""
     return document_tools.find_document(query)
+
+
+@mcp.tool()
+def categorize_document(slug: str, title: str, category: Optional[str] = None) -> dict:
+    """Finalize a just-uploaded document's title and category after reading its actual content. Only usable on a document that already exists (by slug) — this renames/relabels it, it does not create a new one. title should be short and specific to what the document actually is; category should be a short word or two (e.g. "ticket", "receipt", "ID", "invoice", "photo") or omitted if nothing fits."""
+    return document_tools.categorize_document(slug, title, category)
 
 
 if __name__ == "__main__":
