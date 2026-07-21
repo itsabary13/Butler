@@ -48,5 +48,18 @@ class Settings(BaseSettings):
     # Session store
     session_ttl_minutes: int = 30
 
+    # Proactive notifications (v1.6 addendum, docs/architecture/voice-relay.md)
+    # — off by default; deploying this code changes nothing until explicitly
+    # enabled. All other values are safe, conservative defaults, tunable
+    # without a code change.
+    proactive_enabled: bool = False
+    proactive_hour_local: int = 8
+    local_timezone: str = "UTC"
+    proactive_lookahead_days: int = 7
+    proactive_max_per_day: int = 3
+    proactive_cooldown_days: int = 30
+    quiet_hours_start: int = 8
+    quiet_hours_end: int = 21
+
 
 settings = Settings()

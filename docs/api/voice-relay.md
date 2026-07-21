@@ -17,9 +17,13 @@ Telegram's webhook target — receives every update sent to the bot. Handles fou
 - **Auth**: none (used for basic liveness checks, e.g. by a future Phase 2 deployment's health probe).
 - **Response**: `200 {"status": "ok"}` if the process is up. Does not verify downstream provider connectivity (Anthropic/Google/Telegram, or that the local STT/TTS models are loaded) — a deliberately minimal liveness check, not a full readiness check.
 
+## Proactive notifications (v1.6 addendum) — no new HTTP surface
+
+The daily scan (`app/proactive.py`) is triggered by an in-process `AsyncIOScheduler` timer, not a request — deliberately no new route. Its whole effect is "message the user unprompted," so unlike everything else in this file, that trigger is never network-reachable at all; there's nothing here for this section to document beyond confirming the absence. Manual testing invokes it directly in-process (`docker compose exec voice-relay python -c "..."`, see `DEPLOY.md`), not over HTTP.
+
 ## Explicitly out of scope
 
-Any endpoint for a different transport (a phone-call webhook, a web UI, a WhatsApp webhook) — Telegram is the only transport for v1. No authenticated end-user-facing API beyond the webhook itself (no JWT/OAuth token issuance) — single-user, allowlist-based, per `docs/architecture/voice-relay.md`.
+Any endpoint for a different transport (a phone-call webhook, a web UI, a WhatsApp webhook) — Telegram is the only transport for v1. No authenticated end-user-facing API beyond the webhook itself (no JWT/OAuth token issuance) — single-user, allowlist-based, per `docs/architecture/voice-relay.md`. No HTTP-triggerable endpoint for the proactive scan, ever (see above) — an outbound-messaging trigger being network-reachable is a real risk this design avoids entirely rather than authenticating.
 
 ## Lifecycle Status
 
@@ -27,4 +31,4 @@ See `specs/epics/voice-relay.md` — this stage is checked off with this file as
 
 ## Hand-off
 
-Next: `database-designer` — the session store needs real (if minimal) schema design.
+This epic's API surface is complete through v1.6 (still just the webhook + health endpoint — the proactive scan deliberately adds none) — no further stage hand-off pending.

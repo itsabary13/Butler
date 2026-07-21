@@ -3,16 +3,16 @@ to the headless `claude` process (app/claude_code_client.py). Registered via
 mcp-config.json, run as `python -m app.mcp_server`.
 
 Only wraps app/tools/* — the security-reviewed implementations (slug path
-traversal guard, create-only calendar, metadata-only document lookup) are
-unchanged; this file just re-exposes them over MCP instead of the Anthropic
-tool-use schema the direct-API loop used to send.
+traversal guard, create/list-only calendar, metadata-only document lookup)
+are unchanged; this file just re-exposes them over MCP instead of the
+Anthropic tool-use schema the direct-API loop used to send.
 """
 
 from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
-from app.tools import calendar_tools, document_tools, wiki_tools
+from app.tools import calendar_tools, document_tools, notification_store, wiki_tools
 
 mcp = FastMCP("butler")
 
@@ -57,6 +57,19 @@ def find_document(query: str) -> list:
 def categorize_document(slug: str, title: str, category: Optional[str] = None) -> dict:
     """Finalize a just-uploaded document's title and category after reading its actual content. Only usable on a document that already exists (by slug) — this renames/relabels it, it does not create a new one. title should be short and specific to what the document actually is; category should be a short word or two (e.g. "ticket", "receipt", "ID", "invoice", "photo") or omitted if nothing fits."""
     return document_tools.categorize_document(slug, title, category)
+
+
+@mcp.tool()
+def list_upcoming_events(days_ahead: int = 7) -> list:
+    """List the user's real Google Calendar events between now and days_ahead from now (read-only)."""
+    return calendar_tools.list_upcoming_events(days_ahead)
+
+
+@mcp.tool()
+def propose_notification(dedup_key: str, message: str) -> dict:
+    """Propose an unprompted notification to send the user later — this does NOT send anything itself, it only records a candidate for a separate process to review. Only call this during a proactive scan, and only for something genuinely worth an unprompted interruption (an imminent appointment, a clearly overdue recurring item) — not for routine information. dedup_key must be stable across runs for the same underlying thing (a Calendar event's own id for an appointment; a short descriptive slug like "annual-checkup-due" for a recurring/fuzzy item) so the same item is never proposed as if new every time it's still true. message should be short and natural, ready to send as-is."""
+    notification_store.record_proposal(dedup_key, message)
+    return {"status": "proposed"}
 
 
 if __name__ == "__main__":

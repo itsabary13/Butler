@@ -51,8 +51,21 @@ DOCUMENT_ALLOWED_TOOLS = [
     "mcp__butler__save_memory",
 ]
 
+# For the daily proactive scan only (run_proactive_check below, v1.6
+# addendum) — read-only over wiki/calendar, plus the propose-only
+# notification tool. Deliberately excludes save_memory/append_reminder/
+# create_calendar_event and any tool that could send anything directly: an
+# unattended run reads and proposes, it never mutates state or messages the
+# user itself — app/proactive.py's Python gate owns the actual send.
+PROACTIVE_ALLOWED_TOOLS = [
+    "mcp__butler__read_wiki_page",
+    "mcp__butler__list_upcoming_events",
+    "mcp__butler__propose_notification",
+]
+
 CLAUDE_TIMEOUT_SECONDS = 60
 DOCUMENT_TIMEOUT_SECONDS = 90  # reading/describing a file's actual content can run longer than a plain reply
+PROACTIVE_TIMEOUT_SECONDS = 90
 
 
 class ClaudeCodeError(RuntimeError):
@@ -207,3 +220,58 @@ Reply with one short sentence summarizing what you did."""
         return "Saved with the basic title only — couldn't read its content automatically."
 
     return (payload.get("result") or "").strip() or "Saved."
+
+
+def run_proactive_check() -> str:
+    """Once-daily unattended scan (app/proactive.py) for genuine action
+    items — an imminent calendar appointment, a clearly overdue recurring
+    pattern noticed in the wiki (e.g. a checkup). v1.6 addendum,
+    docs/architecture/voice-relay.md.
+
+    A separate, narrower invocation from get_reply's conversational one:
+    no --resume (not a chat turn — this scan has no notion of an ongoing
+    conversation), read-only tools only (PROACTIVE_ALLOWED_TOOLS), and the
+    only "write" it can do is propose_notification, which just records a
+    candidate rather than sending anything — app/proactive.py applies
+    dedup/rate-limit/quiet-hours gating and owns the actual Telegram send.
+    The return value is informational only (logged), not delivered
+    anywhere directly.
+    """
+    prompt = """Daily proactive scan. Review the memory wiki manifest above, read the
+"reminders" page and any other wiki pages that look relevant, and call
+list_upcoming_events to see what's on the calendar.
+
+For each genuinely actionable, high-confidence item worth an unprompted
+interruption — an imminent appointment, a reminder that's due, a clearly
+overdue recurring pattern (e.g. wiki content suggesting a checkup or
+renewal is now well past its usual interval) — call propose_notification
+once, with:
+- dedup_key: stable across days for the same underlying thing (a Calendar
+  event's own id for an appointment; a short descriptive slug like
+  "annual-checkup-due" for a fuzzy/recurring item) — never invent a new key
+  for something you've already flagged before.
+- message: short, natural, ready to speak or read as-is.
+
+Be conservative. Most days should produce zero proposals — only propose
+something a reasonable person would actually want to be interrupted for,
+never routine information. If nothing qualifies, call no tools and just
+reply "no action items today."."""
+
+    command = [
+        settings.claude_binary,
+        "-p", prompt,
+        "--output-format", "json",
+        "--append-system-prompt", _system_prompt(),
+        "--mcp-config", str(MCP_CONFIG_PATH),
+        "--allowedTools", ",".join(PROACTIVE_ALLOWED_TOOLS),
+    ]
+    if settings.claude_code_model:
+        command += ["--model", settings.claude_code_model]
+
+    try:
+        payload = _run_claude(command, timeout=PROACTIVE_TIMEOUT_SECONDS)
+    except ClaudeCodeError as exc:
+        logger.warning("proactive scan failed: %s", exc)
+        return f"(scan failed: {exc})"
+
+    return (payload.get("result") or "").strip()

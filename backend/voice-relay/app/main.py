@@ -3,11 +3,13 @@ See docs/api/voice-relay.md for the full API design.
 """
 
 import logging
+from contextlib import asynccontextmanager
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import BackgroundTasks, FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 
-from app import stt, telegram, tts, wiki_sync
+from app import proactive, stt, telegram, tts, wiki_sync
 from app.claude_code_client import enrich_document, get_reply
 from app.config import settings
 from app.tools import document_tools, wiki_tools
@@ -15,9 +17,26 @@ from app.tools import document_tools, wiki_tools
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("voice_relay.main")
 
-app = FastAPI(title="Butler Voice Relay")
-
 MIN_VOICE_DURATION_SECONDS = 1
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # The daily proactive scan (app/proactive.py, v1.6 addendum) — an
+    # internal-only timer, never a network-reachable trigger, since its
+    # whole effect is "message the user unprompted." Runs in this same
+    # single process (Dockerfile's CMD has no --workers); a second worker
+    # would double-fire the job, so that constraint must hold.
+    scheduler = AsyncIOScheduler()
+    proactive.register_scheduler(scheduler)
+    scheduler.start()
+    try:
+        yield
+    finally:
+        scheduler.shutdown(wait=False)
+
+
+app = FastAPI(title="Butler Voice Relay", lifespan=lifespan)
 
 
 @app.get("/health")

@@ -40,10 +40,30 @@ CREATE TABLE sessions (
 
 Same TTL-expiry behavior as before (stale row treated as no-session, not deleted). No change to the wiki/document persistence section below.
 
+## v3 addendum — Notification store (new, v1.6)
+
+SQLite, `backend/voice-relay/data/notifications.db` (gitignored, same as `sessions.db`) — a separate file, not a second table in `sessions.db`, since it's a durable audit/dedup log rather than a TTL-ephemeral cache; different lifecycle, different module (`app/tools/notification_store.py`).
+
+```sql
+CREATE TABLE notifications (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    dedup_key   TEXT NOT NULL,
+    message     TEXT NOT NULL,
+    status      TEXT NOT NULL,   -- 'proposed' | 'sent' | 'suppressed' | 'deferred'
+    proposed_at TEXT NOT NULL,   -- ISO 8601
+    sent_at     TEXT             -- ISO 8601, set only when status becomes 'sent'
+);
+```
+
+- `id` is the primary key, not `dedup_key` — the same `dedup_key` can produce multiple rows over time (a fuzzy item re-proposed after its cooldown elapses is a new row, not an update to the old one).
+- Every row starts `status='proposed'`, written only by the `propose_notification` MCP tool during the daily scan. `app/proactive.py`'s gate is the only code that ever transitions a row to `sent`/`deferred`/`suppressed` — the model that created the row has no ability to change its own status.
+- Dedup query (`was_recently_sent`): the most recent `status='sent'` row for a `dedup_key`, compared against `PROACTIVE_COOLDOWN_DAYS`. Rate-limit query (`sent_count_last_24h`): count of `status='sent'` rows with `sent_at` in the last 24h — derived from the same table, no separate counter needed.
+- No TTL/cleanup job — this is meant to accumulate as a durable log, unlike `sessions.db`.
+
 ## Lifecycle Status
 
 See `specs/epics/voice-relay.md` — this stage is checked off with this file as its artifact.
 
 ## Hand-off
 
-Next: `frontend-developer` — expected to confirm no dedicated UI (Telegram itself is the interface), then `backend-developer` for implementation.
+This epic's persistence design is complete through v1.6 (`sessions.db`, `notifications.db`, reused wiki/document file conventions) — no further stage hand-off pending.

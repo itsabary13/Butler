@@ -9,8 +9,9 @@ Every other Butler capability (Memory, Documents) runs entirely inside a Claude 
 1. **Telegram interface** (`app/telegram.py`) — receives voice, text, and document messages via webhook (see v3 addendum below); sends voice or text replies.
 2. **Speech layer** (`app/stt.py`, `app/tts.py`) — local, offline transcription and synthesis (see v1.1 addendum below).
 3. **Reasoning layer** (`app/claude_code_client.py`) — headless Claude Code (`claude -p`, subscription-billed — see v2 addendum below); this is the relay's "brain," standing in for what a Claude Code session + skills would normally do.
-4. **Tools** (`app/tools/`) — `wiki_tools.py`, `calendar_tools.py`, `document_tools.py`, `session_store.py` — the relay's own implementations of memory/calendar/document access, since it cannot invoke Claude Code skills directly.
+4. **Tools** (`app/tools/`) — `wiki_tools.py`, `calendar_tools.py`, `document_tools.py`, `session_store.py`, `notification_store.py` (v5 addendum) — the relay's own implementations of memory/calendar/document/notification access, since it cannot invoke Claude Code skills directly.
 5. **Wiki/document sync** (`app/wiki_sync.py`) — keeps the relay's view of the private wiki/document repos current, handles the two-writer race with a desktop Claude Code session.
+6. **Proactive scan** (`app/proactive.py`, v5 addendum) — the one path that initiates contact rather than reacting to an inbound message; scheduled via `AsyncIOScheduler` inside `app/main.py`'s `lifespan`.
 
 ## Why the relay can't reuse existing skills or routines
 
@@ -52,6 +53,7 @@ Phone (Telegram) --voice note--> Telegram Bot API --webhook--> Voice Relay (Fast
 - **Concurrency**: the relay and a desktop Claude Code session can both write to the same wiki files. Mitigated with `git pull --rebase` before reads/writes and a retry-once-then-log (not fail) policy on push conflicts — the same "local save stands, backup push failure reported not fatal" philosophy `remember` already established, applied to a two-writer scenario instead of one.
 - **Latency**: STT + each tool-call round trip + TTS + Telegram upload/download all stack. Bounded (not eliminated) by capping wiki-link-following hops per turn (~4).
 - **Single-user security boundary**: no JWT/OAuth for end users (deliberately, single-user) — the boundary is the webhook's random path, Telegram's `secret_token` header, and a hard `chat_id` allowlist. Anything else is dropped, never processed.
+- **Outbound-initiated messaging** (v5 addendum): every path above only ever acts in response to the user's own message. The proactive scan is the one exception — see that addendum for why the model can only propose a notification, never send one directly.
 
 ## Downstream stage applicability
 
@@ -110,10 +112,28 @@ v1.4's `save_document` never looked at a file's *content*, only its filename/cap
 - **`categorize_document`** (`app/tools/document_tools.py`) is safe to expose as an MCP tool where `save_document` isn't, because it operates on an *already-saved* file by slug reference — no raw bytes need to cross the tool-call boundary. It renames `<slug>.<ext>`/`<slug>.md` to a new slug (same disambiguate-on-collision rule as a fresh save) and adds an optional `category` frontmatter field.
 - **Residual risk, accepted**: an uploaded document's content reaches the model as untrusted input (the same is already true of a voice transcript or a typed message), so a crafted document could attempt to steer `save_memory`/`categorize_document` calls via embedded instructions (indirect prompt injection). Bounded by the same tight `--allowedTools` scoping — worst case is a spurious/misleading memory or mislabeled document, not filesystem or credential exposure, since `Read` still can't reach anything outside the docs directory.
 
+## v5 addendum — proactive notifications (`specs/epics/voice-relay.md`'s v1.6)
+
+Every capability so far only ever acts in response to the user's own message. This adds the first exception: a daily unattended scan that can message the user unprompted when it finds a genuine action item.
+
+- **The model proposes, Python decides and sends.** `app/claude_code_client.py`'s `run_proactive_check()` is a standalone `claude -p` invocation — same shape as `enrich_document` (own prompt, own narrow `--allowedTools`, no `--resume`; this scan has no notion of an ongoing conversation). It reads the wiki manifest/`reminders` page and calls the new `list_upcoming_events` tool, then may call the new `propose_notification` tool for anything genuinely worth an unprompted interruption. `propose_notification` (`app/tools/notification_store.py`) only records a candidate — it has no mechanism to send anything itself. `app/proactive.py`'s `run_daily_scan()` then reads whatever was proposed during that run and is the *only* thing that ever calls `telegram.send_text_reply` unprompted, after applying: cooldown-based dedup (`was_recently_sent`, skip a `dedup_key` sent within `PROACTIVE_COOLDOWN_DAYS`), a hard daily cap (`PROACTIVE_MAX_PER_DAY`, checked via `sent_count_last_24h`), and quiet hours (`QUIET_HOURS_START`/`_END`, in `LOCAL_TIMEZONE`) — a proposal outside any of these is marked `deferred`/`suppressed`, never sent, but can legitimately be re-proposed on a later run if still true.
+
+  This is a deliberate departure from the `save_memory`/`categorize_document` pattern the model can already call directly elsewhere in this relay: those are reversible, user-invisible internal writes; an outbound Telegram ping is user-visible, irreversible, and initiated with no human in the loop at all (every other tool call happens because the user just sent a message — this one doesn't). The chokepoint means a misbehaving or prompt-injected scan can at worst fill a proposals table Python then caps; it can never itself spam the user.
+
+- **One detection path, not two.** The user's two example cases — "an appointment" (looks deterministic: diff against the Calendar) and "time for a checkup" (inherently fuzzy: a pattern noticed in wiki content) — are handled by the *same* invocation rather than a hand-rolled deterministic Python path for the first. `reminders.md`'s rule field is freeform text with no fixed grammar (`- every 10th: pay storage invoice`), so a meaningful share of "appointment-like" items already require LLM interpretation; splitting the two would also mean two separate places for dedup logic to diverge. Determinism is preserved where it actually matters — never double-notify, never spam — by putting it in the Python gate, not in detection.
+
+- **New tools**: `calendar_tools.py`'s `list_upcoming_events(days_ahead=7)` (read-only — `create_calendar_event`'s existing `calendar.events` OAuth scope already covers `events().list()`, no new consent needed) and `notification_store.py`'s `propose_notification`/dedup functions, both wrapped in `app/mcp_server.py`. `PROACTIVE_ALLOWED_TOOLS` (`claude_code_client.py`) deliberately excludes `save_memory`, `append_reminder`, and `create_calendar_event` — an unattended scan reads and proposes, it never mutates the wiki or calendar.
+
+- **Scheduling**: `AsyncIOScheduler` (APScheduler) started in `app/main.py`'s new `lifespan` context manager, inside the same single `uvicorn` process — no new container (`docker-compose.yml` stays `voice-relay` + `caddy`), and critically no new network-reachable endpoint, since the trigger's only purpose is "cause an unprompted message" and that surface shouldn't be externally triggerable. The blocking `claude` subprocess call runs via `asyncio.to_thread`, same reasoning as the webhook path's `BackgroundTasks`. **Hard constraint**: the Dockerfile's `CMD` must stay a single worker (no `uvicorn --workers`) — more than one would double-fire the daily job (mitigated regardless with `max_instances=1, coalesce=True`).
+
+- **Why not a Claude Code Routine**: `backend/memory-module` already tried exactly this and hit two confirmed platform walls (`specs/epics/memory-module.md`'s v1.4 section) — Routines can't attach private GitHub repos, and have no secret/env-var storage, so a Routine can use neither this repo's private wiki nor a Telegram bot token. This relay has neither constraint (real server, real `.env`, wiki already on the same VPS), which is the whole reason to build this here instead of revisiting Routines.
+
+- **Off by default**: `PROACTIVE_ENABLED=false` — deploying this code changes nothing until explicitly turned on, after a manual live-verification pass (`DEPLOY.md`).
+
 ## Lifecycle Status
 
 See `specs/epics/voice-relay.md` — this stage is checked off with this file as its artifact.
 
 ## Hand-off
 
-Next: `domain-designer` — a real (if small) domain model exists here: a `Session` entity, distinct from `WikiPage`.
+This epic's full lifecycle (domain/API/DB/UI/implementation/tests/review/docs) is complete through v1.6 — no further stage hand-off pending. Future increments follow the same addendum pattern as v1.1–v1.6 above.

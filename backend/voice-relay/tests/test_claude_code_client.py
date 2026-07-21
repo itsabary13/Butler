@@ -137,3 +137,47 @@ def test_enrich_document_falls_back_to_generic_message_on_failure(monkeypatch):
     summary = claude_code_client.enrich_document(Path("/data/docs/x.pdf"), "x", "x", None)
 
     assert "couldn't read" in summary.lower()
+
+
+def test_proactive_allowed_tools_has_no_send_capable_or_filesystem_tool():
+    # The daily scan can read wiki/calendar and propose a notification —
+    # nothing else. In particular: no Read/Bash (unlike enrich_document,
+    # this pass has no file to view), and no tool that could send anything
+    # (save_memory/append_reminder/create_calendar_event all mutate state;
+    # propose_notification only records a candidate, app/proactive.py's
+    # gate owns the actual Telegram send).
+    assert "Read" not in claude_code_client.PROACTIVE_ALLOWED_TOOLS
+    assert "Bash" not in claude_code_client.PROACTIVE_ALLOWED_TOOLS
+    for disallowed in ("save_memory", "append_reminder", "create_calendar_event"):
+        assert not any(disallowed in tool for tool in claude_code_client.PROACTIVE_ALLOWED_TOOLS)
+    assert "mcp__butler__propose_notification" in claude_code_client.PROACTIVE_ALLOWED_TOOLS
+
+
+def test_run_proactive_check_uses_proactive_allowlist_and_no_resume(monkeypatch):
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        return _FakeCompletedProcess(json.dumps({"result": "no action items today."}))
+
+    monkeypatch.setattr(claude_code_client.subprocess, "run", fake_run)
+
+    summary = claude_code_client.run_proactive_check()
+
+    assert summary == "no action items today."
+    command = captured["command"]
+    assert "--resume" not in command
+    assert "--add-dir" not in command  # no file to scope Read to — it has no Read at all
+    allowed_tools = command[command.index("--allowedTools") + 1]
+    assert allowed_tools == ",".join(claude_code_client.PROACTIVE_ALLOWED_TOOLS)
+
+
+def test_run_proactive_check_falls_back_to_message_on_failure(monkeypatch):
+    def fake_run(command, **kwargs):
+        return _FakeCompletedProcess("", returncode=1, stderr="claude crashed")
+
+    monkeypatch.setattr(claude_code_client.subprocess, "run", fake_run)
+
+    summary = claude_code_client.run_proactive_check()
+
+    assert "scan failed" in summary.lower()

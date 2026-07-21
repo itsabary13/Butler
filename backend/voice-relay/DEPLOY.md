@@ -119,6 +119,20 @@ curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
 
 Then send a real voice message to the bot from your phone and confirm a spoken reply comes back.
 
+## 10. (Optional) Enable and verify proactive notifications
+
+Ships disabled (`PROACTIVE_ENABLED=false`) — the daily scan (`docs/architecture/voice-relay.md`'s v5 addendum) only runs once you opt in.
+
+1. In `.env`, set `PROACTIVE_ENABLED=true` and `LOCAL_TIMEZONE` to your real IANA timezone (e.g. `Asia/Jerusalem`) — this controls both `PROACTIVE_HOUR_LOCAL` and quiet hours. Leave the other `PROACTIVE_*`/`QUIET_HOURS_*` values at their defaults unless you have a reason to change them.
+2. `docker compose up -d` (env-only change — no `--build` needed).
+3. Put something genuinely test-worthy in place first: a real Google Calendar event in the next `PROACTIVE_LOOKAHEAD_DAYS`, or a fact in the wiki that reads like an overdue pattern (e.g. tell the bot by voice/text "I had a checkup 7 months ago").
+4. Trigger a scan immediately, without waiting for the scheduled hour or exposing any new endpoint — this runs the exact same code the daily cron job calls:
+   ```bash
+   docker compose exec voice-relay python -c "import asyncio; from app.proactive import run_daily_scan; asyncio.run(run_daily_scan())"
+   ```
+5. Confirm exactly one Telegram message arrives for the item you set up. Run the same command again immediately — confirm nothing sends a second time (dedup working).
+6. The next morning, check `docker compose logs` around `PROACTIVE_HOUR_LOCAL` to confirm the scheduled job actually fired on its own, not just via the manual trigger above.
+
 ## Updating the deployment later
 
 ```bash
@@ -126,7 +140,9 @@ cd Butler && git pull
 cd backend/voice-relay && docker compose up -d --build
 ```
 
-Session history (`data/sessions.db`) and the wiki/document clones (`/opt/butler-memory`, `/opt/butler-documents`) all live outside the container image, so a rebuild/redeploy doesn't lose them. The faster-whisper model is cached in the `whisper_cache` named volume for the same reason — it isn't re-downloaded on every redeploy.
+Session history (`data/sessions.db`), the proactive-notification dedup log (`data/notifications.db`), and the wiki/document clones (`/opt/butler-memory`, `/opt/butler-documents`) all live outside the container image, so a rebuild/redeploy doesn't lose them. The faster-whisper model is cached in the `whisper_cache` named volume for the same reason — it isn't re-downloaded on every redeploy.
+
+**Do not add `uvicorn --workers` / scale to multiple replicas of this service.** The proactive daily scan (v5 addendum) is scheduled in-process; more than one worker would run — and fire — more than one scheduler, double-sending notifications.
 
 ## Cost summary
 

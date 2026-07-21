@@ -12,6 +12,19 @@ def test_health_endpoint():
     assert response.json() == {"status": "ok"}
 
 
+def test_lifespan_starts_and_stops_the_proactive_scheduler():
+    # A plain TestClient(app) (used everywhere else in this file) never
+    # triggers ASGI lifespan events at all — only entering it as a context
+    # manager does, which is the only way to actually exercise app.main's
+    # AsyncIOScheduler wiring (v1.6 addendum) rather than just importing it.
+    # No assertion beyond "didn't raise": startup (scheduler.start(), the
+    # job getting registered) and shutdown completing cleanly is the thing
+    # being verified.
+    with TestClient(app) as ctx_client:
+        response = ctx_client.get("/health")
+        assert response.status_code == 200
+
+
 def test_webhook_rejects_wrong_path_secret():
     update = {"message": {"chat": {"id": 12345}, "voice": {"file_id": "abc"}}}
     response = client.post(

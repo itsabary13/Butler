@@ -9,7 +9,7 @@ Unlike Memory/Document (natural-language-instructed skills), the voice relay is 
 cd backend/voice-relay
 python -m pytest tests/ -v
 ```
-**Result:** 66/66 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
+**Result:** 88/88 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
 
 ### `test_stt.py` (2 tests)
 
@@ -34,7 +34,7 @@ Exercises `app/telegram.py` in isolation (no FastAPI, no network):
 - `extract_voice_message` — a text-only message returns `None`; a voice message returns `{chat_id, file_id, duration}`; a payload with no `message` key returns `None`.
 - **v1.4 addendum**: `extract_document_message` — returns `{chat_id, file_id, filename, caption}`, defaults `filename` to `"document"` and `caption` to `None` when Telegram omits them, returns `None` for a voice message. `extract_text_message` — returns `{chat_id, text}`, returns `None` for a voice message. `extract_photo_message` (added after live testing showed images sent via the Photo picker were silently dropped) — picks the highest-resolution `PhotoSize`, defaults `caption` to `None`, returns `None` for a voice message or an empty photo list.
 
-### `test_main_app.py` (11 tests)
+### `test_main_app.py` (12 tests)
 
 `fastapi.testclient.TestClient` against the real `app.main.app` (env vars stubbed in `conftest.py` with fictional placeholder values — no real credentials anywhere in the test suite):
 
@@ -81,12 +81,24 @@ Added for v1.5 (`specs/epics/voice-relay.md`) — documents/photos are now actua
 - **`test_document_tools.py`** (+6 tests): `categorize_document` — renames `<slug>.<ext>`/`<slug>.md` to a content-derived slug and adds an optional `category` field, preserving `original_filename`/`added_at`/file bytes across the rename; omits the `category` line entirely when none is given; updates the sidecar in place (no rename) when the new title slugifies to the same value; disambiguates a collision with a *different* existing document the same way a fresh save does; returns `{"error": ...}` for an unknown slug rather than raising; a re-categorized document is immediately findable by its new category via `find_document`.
 - **`test_claude_code_client.py`** (+2 tests): `enrich_document` — asserts the exact `--add-dir` value (the file's own parent directory only) and that `--allowedTools` includes `Read`/`categorize_document` but excludes `create_calendar_event` (narrower than the conversational allowlist), and that no `--resume` flag is passed (not a chat turn); a `claude` failure falls back to a plain "couldn't read its content automatically" message rather than raising out to the caller (a document upload's placeholder save should never be lost just because the enrichment pass failed).
 
+## v5 addendum — proactive notifications (`test_notification_store.py`, `test_proactive.py`, +3 `test_claude_code_client.py`)
+
+Added for v1.6 (`specs/epics/voice-relay.md`) — the daily unattended scan and its send/gate split. All of these mock `claude`/Telegram exactly like every prior addendum — no live subprocess or network calls anywhere in this suite, including for the one feature that can initiate outbound contact on its own.
+
+- **`test_notification_store.py`** (8 tests): pure SQLite logic against a `tmp_path` database (never `data/notifications.db`) — `get_proposals_since` returns only rows proposed at/after the given cutoff and still `status='proposed'` (already-`sent`/`deferred`/`suppressed` rows are excluded from a re-query, so nothing gets double-processed); `was_recently_sent` is `True` only for a `dedup_key` with a `sent` row inside the cooldown window, `False` once that window has elapsed (verified by directly backdating a row's `sent_at`) or if the only prior rows are `deferred`/`suppressed` (never actually sent); `sent_count_last_24h` only counts `status='sent'` rows in the last 24h.
+- **`test_proactive.py`** (10 tests): `run_daily_scan`'s gating, with `claude_code_client.run_proactive_check` and `telegram.send_text_reply` both mocked (the latter with an always-async stand-in, even in tests expecting zero sends, so a future bug that *does* reach the send call fails loudly instead of silently — see the module's `_async_recorder` helper) — `proactive_enabled=False` calls `run_proactive_check` zero times; a proposal gets sent and marked `sent`; no proposals sends nothing; a `dedup_key` sent within its cooldown is suppressed on a repeat proposal; the daily cap stops sending after the configured max and defers the rest; every proposal is deferred when `_within_quiet_hours` is `False`; a `run_proactive_check` exception is caught, not raised, so a scan failure can't take down the scheduler. `_within_quiet_hours` itself is tested directly for the normal-window, outside-window, and wraps-past-midnight cases.
+- **`test_claude_code_client.py`** (+3 tests): `PROACTIVE_ALLOWED_TOOLS` contains no `Read`/`Bash`/state-mutating tool, only `propose_notification` for "writing" (added during this addendum's self-review, see `docs/reviews/voice-relay.md`); `run_proactive_check` passes exactly `PROACTIVE_ALLOWED_TOOLS` as `--allowedTools`, no `--resume`, no `--add-dir` (nothing to scope `Read` to — it has none); a `claude` failure returns a `"(scan failed: ...)"` string rather than raising.
+- **`test_main_app.py`** (+1 test): `test_lifespan_starts_and_stops_the_proactive_scheduler` — the only test in the suite that enters `TestClient(app)` as a context manager rather than using it directly, since a plain `TestClient(app)` never triggers ASGI lifespan events at all. Every other test in this file was (and remains) correct without this, but it means `app/main.py`'s `AsyncIOScheduler` wiring itself — `scheduler.start()`, the job actually getting registered, `scheduler.shutdown()` — was previously never exercised by anything in this suite, only by manual inspection. This closes that gap: confirms startup and shutdown both complete without raising.
+
+`app/mcp_server.py`'s `list_upcoming_events`/`propose_notification` wrappers are, like the other MCP wrappers, not separately tested — thin pass-throughs to `calendar_tools`/`notification_store` functions already covered directly.
+
 ## What's deliberately not tested
 
 - **No live provider integration test in the automated suite.** There's no `pytest` test that actually invokes the real `claude` CLI, Telegram, or Google Calendar — `app/claude_code_client.py`'s subprocess invocation, `app/tools/calendar_tools.py`, and `enrich_document`'s `Read`/vision path are exercised only by inspection and by the mocked/stubbed unit tests above within this suite. (Real end-to-end verification against live credentials did happen, manually, as Task 43 — now complete, `specs/epics/voice-relay.md`'s Status — it just isn't part of what `pytest tests/` runs.)
 - **`app/stt.py`/`app/tts.py` (local faster-whisper/Piper, v1.1 addendum) have no automated pytest coverage** — they were instead verified with a manual local round-trip (see below), since exercising them in the automated suite would mean downloading multi-hundred-MB models on every test run. `conftest.py` sets a fictional `PIPER_VOICE_MODEL_PATH` only so `Settings()` constructs without error; no test actually loads a model.
 - **The Definition of Done checklist in the plan** (voice message → transcribed → wiki-aware reply → spoken back; calendar event actually created; session follow-up resolves "actually make it 2pm"; restart data-durability; wrong-secret/wrong-chat_id rejection) is only partially covered by the automated suite (the rejection case is) — the rest was confirmed manually via Task 43's live run against the real deployment, not by `pytest`.
 - **Wiki two-writer concurrency** (`app/wiki_sync.py`'s pull-rebase-retry-once behavior) is implemented but not tested under a real concurrent-write race — acceptable to defer; the retry-once-then-log policy mirrors `remember`'s already-accepted "local save stands, backup push failure is reported not fatal" philosophy.
+- **The proactive scan's actual scheduling** (`app/proactive.py`'s `register_scheduler`, the `AsyncIOScheduler`/`CronTrigger` wiring itself) has no automated test — verified by inspection and by the manual live-verification pass in `DEPLOY.md` (confirming the daily job actually fires at the configured hour), not by `pytest`. What's tested is everything the scheduler calls (`run_daily_scan`'s gating logic) in isolation from the scheduler itself.
 
 ## Lifecycle Status
 
@@ -94,4 +106,4 @@ See `specs/epics/voice-relay.md` — this stage is checked off with this file as
 
 ## Hand-off
 
-Next: `reviewer` (`/reviewer`).
+This epic's test coverage is complete through v1.6 — no further stage hand-off pending.

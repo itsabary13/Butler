@@ -6,13 +6,14 @@ See `specs/epics/voice-relay.md` for the full spec, `docs/architecture/voice-rel
 
 ## What it is
 
-A small FastAPI service that handles three Telegram message types (voice, text, document — v1.4 addendum, `specs/epics/voice-relay.md`):
+A small FastAPI service that handles three Telegram message types (voice, text, document — v1.4 addendum, `specs/epics/voice-relay.md`), plus one thing it can do entirely on its own:
 
 - **Voice**: transcribed locally (faster-whisper — no account, no per-request billing; restricted to English/Hebrew/Russian, `app/stt.py`), answered, then replied to with synthesized speech (Piper, also local — see `docs/architecture/voice-relay.md`'s v1.1 addendum).
 - **Text**: answered the same way as voice, minus STT/TTS — same "brain," same tools, same conversation continuity, just typed instead of spoken, replied to with text.
 - **Document or photo**: saved into the same file+metadata convention the `add-document` skill uses (`docs/db/document-module.md`), covering both of Telegram's upload shapes — a "File" attachment, and the ordinary Photo picker/camera button (compressed, no filename of its own). The initial save is deterministic, not LLM-driven (file bytes can't reasonably flow through an MCP tool call) — but a second pass then actually reads the content and auto-names/categorizes it, and saves anything worth remembering into the wiki so it's answerable later ("what does my ticket say"), not just findable by title (v1.5 addendum).
+- **Proactive notifications** (v1.6 addendum, off by default — `PROACTIVE_ENABLED`): once a day, checks for genuinely actionable items (an imminent calendar appointment, a clearly overdue recurring pattern like a checkup) and messages you unprompted if it finds one. This is the one thing in the whole relay that initiates contact rather than reacting to a message, so it's built with an explicit safety split: the model can only *propose* a notification, never send one — a deterministic Python gate (dedup, a daily cap, quiet hours) decides what, if anything, actually goes out. See `docs/architecture/voice-relay.md`'s v5 addendum for the full design.
 
-Answering (voice and text) goes through a headless `claude` CLI call, billed against your Claude Pro/Max subscription's usage allowance rather than a pay-per-token API key (see `docs/architecture/voice-relay.md`'s v2 addendum) — reading the same wiki files `remember`/`recall` use (`docs/db/memory-module.md`) through a local MCP server (`app/mcp_server.py`), not by invoking Claude Code skills directly (which only run inside an interactive Claude Code session). It can also create Google Calendar events directly (its own OAuth credentials, not the Claude Code connector).
+Answering (voice and text) goes through a headless `claude` CLI call, billed against your Claude Pro/Max subscription's usage allowance rather than a pay-per-token API key (see `docs/architecture/voice-relay.md`'s v2 addendum) — reading the same wiki files `remember`/`recall` use (`docs/db/memory-module.md`) through a local MCP server (`app/mcp_server.py`), not by invoking Claude Code skills directly (which only run inside an interactive Claude Code session). It can also create/list Google Calendar events directly (its own OAuth credentials, not the Claude Code connector).
 
 ## Phase 1 vs. Phase 2
 
@@ -29,6 +30,7 @@ Phase 2 (underway — see `DEPLOY.md`): the same code, deployed to a DigitalOcea
 6. One-time Google Calendar OAuth consent: `python scripts/google_oauth_setup.py` (see that script's own comments — do this before running the app for the first time).
 7. `uvicorn app.main:app --reload --port 8000`
 8. Expose it publicly for Telegram's webhook (e.g. `ngrok http 8000`), then register the webhook URL with Telegram (see `app/telegram.py`'s module docstring for the exact `setWebhook` call).
+9. (Optional) Proactive notifications ship disabled — leave `PROACTIVE_ENABLED=false` until you've done the manual live-verification pass in `DEPLOY.md`, then flip it on and restart.
 
 ## Important
 
@@ -36,3 +38,4 @@ Phase 2 (underway — see `DEPLOY.md`): the same code, deployed to a DigitalOcea
 - On a machine behind a corporate SSL-intercepting proxy, the very first `faster-whisper`/Piper model download may fail with a certificate error even though your browser trusts the site fine — `pip install pip-system-certs` fixes this by making Python's HTTPS libraries trust the same certificate store Windows already does. Only ever needed once, for the download itself.
 - Never put real personal data into anything committed here — same rule as the rest of this repo (`docs/workflow.md`). `.env`, `data/`, and `models/` are gitignored for exactly this reason (`models/` holds large downloaded binaries, not source).
 - Single-user only: the Telegram webhook only processes messages from `TELEGRAM_OWNER_CHAT_ID`; everything else is dropped.
+- Proactive notifications (if enabled) run one extra `claude` invocation per day, on top of reactive usage — still against the same Pro/Max subscription allowance, no separate billing, just worth knowing it's additional daily draw on that same rate-limited quota.

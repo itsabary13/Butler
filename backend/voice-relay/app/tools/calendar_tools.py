@@ -2,10 +2,14 @@
 connector, since this is a separate OS process with no access to that
 connector. Own OAuth credentials, own token refresh.
 
-Create-only for v1 (specs/stories/voice-relay/voice-calendar-action.md) —
-matches Memory's own precedent of deferring update/delete rather than
-building it speculatively.
+Create and list only — update/delete are still out of scope
+(specs/stories/voice-relay/voice-calendar-action.md, matching Memory's own
+precedent of deferring update/delete rather than building it
+speculatively). list_upcoming_events (v1.6 addendum) is read-only, added
+for the proactive-notification scan (app/proactive.py).
 """
+
+from datetime import datetime, timedelta, timezone
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -56,3 +60,30 @@ def create_calendar_event(
         "start": created.get("start"),
         "htmlLink": created.get("htmlLink"),
     }
+
+
+def list_upcoming_events(days_ahead: int = 7) -> list[dict]:
+    """Events on the primary calendar between now and days_ahead from now —
+    read-only, no update/delete capability added alongside this."""
+    now = datetime.now(timezone.utc)
+    service = _calendar_client()
+    result = service.events().list(
+        calendarId=settings.primary_calendar_id,
+        timeMin=now.isoformat(),
+        timeMax=(now + timedelta(days=days_ahead)).isoformat(),
+        singleEvents=True,
+        orderBy="startTime",
+    ).execute()
+
+    events = []
+    for event in result.get("items", []):
+        start = event.get("start", {})
+        end = event.get("end", {})
+        events.append({
+            "id": event.get("id"),
+            "summary": event.get("summary"),
+            "start": start.get("dateTime") or start.get("date"),
+            "end": end.get("dateTime") or end.get("date"),
+            "all_day": "date" in start,
+        })
+    return events
