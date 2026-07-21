@@ -71,6 +71,26 @@ Reviewed the swap from a direct Anthropic API tool-use loop to headless `claude 
 
 No new findings. **Verdict: PASS** still holds.
 
+## v3 addendum — text and document input
+
+Reviewed the new text/document message paths (`docs/architecture/voice-relay.md`'s v3 addendum): `app/telegram.py`'s new extractors, `app/main.py`'s type-branching, `app/tools/document_tools.py`'s `save_document`.
+
+### High (found and fixed) — unsanitized file extension in `save_document` (`app/tools/document_tools.py`)
+
+`save_document` writes to `docs_dir() / f"{slug}.{ext}"`. `slug` is always passed through `slugify()` (ASCII kebab-case only), but `ext` — taken from `filename.rsplit(".", 1)[1]`, and `filename` is the sender's own Telegram document filename, fully attacker/user-controlled — was only `.lower()`'d before reaching that path construction. A crafted filename (e.g. `evil.txt/../../root/.ssh/authorized_keys`, where the *last* `.` in the string lands inside a `..` segment) could smuggle a `/` or `..` into `ext`, escaping `docs_dir()`.
+
+**Fix applied**: `VALID_EXT = re.compile(r"^[a-z0-9]{1,10}$")`, checked right after lowercasing; anything that doesn't match falls back to a safe `bin` extension. Added `test_save_document_rejects_unsafe_extension` (`test_document_tools.py`), parametrized over three traversal-shaped filenames, asserting every file written during the call is a direct child of the docs directory — none escape it.
+
+This is the same class of finding as the original review's wiki-slug path traversal, in a new module that reached the filesystem for the first time in this addendum.
+
+### Security notes
+
+- Auth model unaffected: `verify_webhook_secret` still runs first, unconditionally, before any payload-shape branching (`app/main.py`) — confirmed the type-branching restructure didn't reorder this. The `chat_id` ownership check now runs generically once *some* actionable type is found, rather than being voice-specific — an unhandled type (sticker, photo) still gets `200` without a `chat_id` check, matching the original accepted "nothing to authorize when nothing is processed" reasoning, just generalized to three types instead of one.
+- `save_document` never executes `claude` or any subprocess — it's plain file I/O, so it doesn't inherit `claude_code_client.py`'s subprocess-injection considerations at all.
+- Text messages reach `claude_code_client.get_reply` exactly as voice transcripts already do (same argv-list subprocess call, same `--allowedTools` allowlist) — no new surface, just a second caller of an already-reviewed function.
+
+No other new findings. **Verdict: PASS** still holds.
+
 ## Lifecycle Status
 
 See `specs/epics/voice-relay.md` — this stage is checked off with this file as its artifact.

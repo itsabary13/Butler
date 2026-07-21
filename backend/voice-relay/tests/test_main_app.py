@@ -32,11 +32,11 @@ def test_webhook_rejects_wrong_chat_id():
     assert response.status_code == 401
 
 
-def test_webhook_rejects_non_voice_message_with_wrong_secret():
+def test_webhook_rejects_unhandled_message_type_with_wrong_secret():
     # The secret check must run BEFORE branching on message type — otherwise
-    # an unauthenticated caller could distinguish "voice vs. non-voice"
-    # behavior without ever presenting the right secret.
-    update = {"message": {"chat": {"id": 12345}, "text": "hello"}}
+    # an unauthenticated caller could distinguish "which message types this
+    # endpoint handles" without ever presenting the right secret.
+    update = {"message": {"chat": {"id": 12345}, "sticker": {"file_id": "xyz"}}}
     response = client.post(
         "/telegram/webhook/wrong-secret",
         json=update,
@@ -45,8 +45,11 @@ def test_webhook_rejects_non_voice_message_with_wrong_secret():
     assert response.status_code == 401
 
 
-def test_webhook_ignores_non_voice_message_once_authenticated():
-    update = {"message": {"chat": {"id": 12345}, "text": "hello"}}
+def test_webhook_ignores_unhandled_message_type_once_authenticated():
+    # A sticker (or any type with no voice/document/text extraction) is
+    # silently accepted, not rejected — there's nothing to authorize since
+    # nothing is going to be processed either way.
+    update = {"message": {"chat": {"id": 12345}, "sticker": {"file_id": "xyz"}}}
     response = client.post(
         "/telegram/webhook/test-webhook-secret",
         json=update,
@@ -82,3 +85,55 @@ def test_webhook_schedules_processing_for_voice_message_at_least_one_second(monk
     )
     assert response.status_code == 200
     assert calls == [(12345, "abc")]
+
+
+def test_webhook_schedules_processing_for_text_message(monkeypatch):
+    calls = []
+    monkeypatch.setattr(main_module, "_process_text_message", lambda chat_id, text: calls.append((chat_id, text)))
+
+    update = {"message": {"chat": {"id": 12345}, "text": "remember that my favorite color is blue"}}
+    response = client.post(
+        "/telegram/webhook/test-webhook-secret",
+        json=update,
+        headers={"X-Telegram-Bot-Api-Secret-Token": "test-webhook-secret"},
+    )
+    assert response.status_code == 200
+    assert calls == [(12345, "remember that my favorite color is blue")]
+
+
+def test_webhook_rejects_text_message_from_non_owner_chat_id(monkeypatch):
+    calls = []
+    monkeypatch.setattr(main_module, "_process_text_message", lambda chat_id, text: calls.append((chat_id, text)))
+
+    update = {"message": {"chat": {"id": 99999}, "text": "hello"}}
+    response = client.post(
+        "/telegram/webhook/test-webhook-secret",
+        json=update,
+        headers={"X-Telegram-Bot-Api-Secret-Token": "test-webhook-secret"},
+    )
+    assert response.status_code == 401
+    assert calls == []
+
+
+def test_webhook_schedules_processing_for_document_message(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        main_module,
+        "_process_document_message",
+        lambda chat_id, file_id, filename, caption: calls.append((chat_id, file_id, filename, caption)),
+    )
+
+    update = {
+        "message": {
+            "chat": {"id": 12345},
+            "document": {"file_id": "doc-abc", "file_name": "passport_scan.pdf"},
+            "caption": "my passport scan",
+        }
+    }
+    response = client.post(
+        "/telegram/webhook/test-webhook-secret",
+        json=update,
+        headers={"X-Telegram-Bot-Api-Secret-Token": "test-webhook-secret"},
+    )
+    assert response.status_code == 200
+    assert calls == [(12345, "doc-abc", "passport_scan.pdf", "my passport scan")]

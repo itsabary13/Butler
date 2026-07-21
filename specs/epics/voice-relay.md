@@ -49,6 +49,15 @@ Phase 2 (VPS hosting) was explicitly deferred as "a separate, future epic" above
 
 Constraint changed after Phase 2 was already live: VPS/domain cost stays accepted, but no pay-per-token Anthropic API billing at all — only the existing Claude Pro subscription. This supersedes the "Billed separately... pay-per-token" bullet in "Fixed constraints for v1" above. The relay now answers via headless Claude Code (`claude -p`, authenticated with `CLAUDE_CODE_OAUTH_TOKEN`) instead of a direct Anthropic API tool-use loop, drawing on the Pro plan's usage allowance instead of separate billing. Tools move from hand-rolled Anthropic tool-use schemas to a local MCP server exposing the same `app/tools/*` implementations. No scope change — same five tools, same wiki/calendar/document behavior. See `docs/architecture/voice-relay.md`'s v2 addendum for the full design and `docs/db/voice-relay.md`/`docs/domain/voice-relay.md` for the resulting `Session` schema change (a Claude Code `session_id` instead of a replayed transcript).
 
+## v1.4 addendum — text and document input, not just voice
+
+Extended beyond "voice is the only supported input" (original IN SCOPE list above): the same Telegram webhook now also accepts plain text messages and document (file) uploads.
+
+- **Text messages** answer through the exact same "brain" as voice (`app/claude_code_client.py`, same tools, same `--resume` session continuity) — just skip STT and reply with text instead of a voice note. No new capability, just a second way to reach the same five tools.
+- **Document uploads** are saved as a new `Document` using the *exact* existing `docs/db/document-module.md` sidecar convention `find_document` already reads — a file saved this way is immediately findable by voice or text ("find my passport scan"). This does **not** go through `claude` — file bytes can't reasonably flow through an MCP tool-call's JSON arguments, so `app/tools/document_tools.py`'s `save_document` is called directly and deterministically from `app/main.py`, using the Telegram caption (if any) as the title.
+- No scope change to the Calendar/Reminder/Memory tools themselves, and voice remains fully supported unchanged — this only widens which message *types* the webhook accepts.
+- See `docs/architecture/voice-relay.md`'s v3 addendum for the full design and `docs/reviews/voice-relay.md` for a path-traversal finding (and fix) in the new document-saving code.
+
 ## Lifecycle Status
 
 - [x] Epic / User Stories / Functional Requirements — requirements-analyst — `specs/stories/voice-relay/`

@@ -34,8 +34,8 @@ async def telegram_webhook(
 ):
     # Check the secret first, for every request, regardless of payload shape —
     # doing this only after branching on message type would let an
-    # unauthenticated caller distinguish "voice vs. non-voice" behavior
-    # without ever presenting the right secret.
+    # unauthenticated caller distinguish "which message types this endpoint
+    # handles" without ever presenting the right secret.
     if not telegram.verify_webhook_secret(secret, x_telegram_bot_api_secret_token):
         logger.warning("rejected webhook call with invalid secret")
         return JSONResponse({}, status_code=401)
@@ -43,12 +43,18 @@ async def telegram_webhook(
     update = await request.json()
 
     voice = telegram.extract_voice_message(update)
-    if voice is None:
-        # Not a voice message (text, sticker, etc.) — silently ignore for v1;
-        # voice is the only supported input per specs/epics/voice-relay.md.
+    document = telegram.extract_document_message(update) if voice is None else None
+    text = telegram.extract_text_message(update) if voice is None and document is None else None
+
+    payload = voice or document or text
+    if payload is None:
+        # Not a message type we act on (sticker, photo, edited_message,
+        # etc.) — silently ignore, same as before: once the secret above is
+        # confirmed authentic, there's nothing to authorize here since
+        # nothing is going to be processed either way.
         return JSONResponse({})
 
-    chat_id = voice["chat_id"]
+    chat_id = payload["chat_id"]
 
     if str(chat_id) != str(settings.telegram_owner_chat_id):
         # Right secret, wrong sender — still dropped without a reply
@@ -56,23 +62,29 @@ async def telegram_webhook(
         logger.warning("rejected webhook call from non-owner chat_id=%s", chat_id)
         return JSONResponse({}, status_code=401)
 
-    if voice["duration"] < MIN_VOICE_DURATION_SECONDS:
-        # Almost always an accidental tap, not real speech — an empty/near-
-        # empty transcript just reaches claude with nothing to say. Drop it
-        # silently, same treatment as a non-voice message.
-        logger.info(
-            "dropped voice message under %ss (chat_id=%s, duration=%ss)",
-            MIN_VOICE_DURATION_SECONDS, chat_id, voice["duration"],
-        )
-        return JSONResponse({})
-
     # Ack Telegram immediately and do the real work in the background — the
-    # full pipeline (STT + the claude subprocess call + TTS) can easily run
-    # past Telegram's webhook response window, and Telegram re-delivers the
-    # same update (reprocessing it from scratch) if it doesn't see a fast
-    # 200. The actual reply goes out via a separate sendVoice call below
-    # regardless, so the webhook response body was never carrying it.
-    background_tasks.add_task(_process_voice_message, chat_id, voice["file_id"])
+    # full pipeline (STT/document save + the claude subprocess call + TTS)
+    # can easily run past Telegram's webhook response window, and Telegram
+    # re-delivers the same update (reprocessing it from scratch) if it
+    # doesn't see a fast 200. The actual reply goes out via a separate
+    # send call regardless, so the webhook response body was never carrying it.
+    if voice is not None:
+        if voice["duration"] < MIN_VOICE_DURATION_SECONDS:
+            # Almost always an accidental tap, not real speech — an empty/
+            # near-empty transcript just reaches claude with nothing to say.
+            logger.info(
+                "dropped voice message under %ss (chat_id=%s, duration=%ss)",
+                MIN_VOICE_DURATION_SECONDS, chat_id, voice["duration"],
+            )
+            return JSONResponse({})
+        background_tasks.add_task(_process_voice_message, chat_id, voice["file_id"])
+    elif document is not None:
+        background_tasks.add_task(
+            _process_document_message, chat_id, document["file_id"], document["filename"], document["caption"]
+        )
+    else:
+        background_tasks.add_task(_process_text_message, chat_id, text["text"])
+
     return JSONResponse({})
 
 
@@ -95,7 +107,7 @@ async def _handle_voice_message(chat_id: str, file_id: str) -> None:
     wiki_sync.sync_before(wiki_dir)
     wiki_sync.sync_before(docs_dir)
 
-    audio_bytes = await telegram.download_voice(file_id)
+    audio_bytes = await telegram.download_file(file_id)
     user_text = stt.transcribe(audio_bytes)
     logger.info("chat_id=%s transcribed: %s", chat_id, user_text)
 
@@ -106,3 +118,60 @@ async def _handle_voice_message(chat_id: str, file_id: str) -> None:
 
     wiki_sync.sync_after(wiki_dir, f"voice-relay: update from chat {chat_id}")
     wiki_sync.sync_after(docs_dir, f"voice-relay: update from chat {chat_id}")
+
+
+async def _process_text_message(chat_id: str, text: str) -> None:
+    try:
+        await _handle_text_message(chat_id, text)
+    except Exception:
+        logger.exception("failed to process text message for chat_id=%s", chat_id)
+        try:
+            await telegram.send_text_reply(
+                chat_id, "Sorry, something went wrong processing that — please try again."
+            )
+        except Exception:
+            logger.exception("failed to even send the error reply")
+
+
+async def _handle_text_message(chat_id: str, text: str) -> None:
+    """Same 'brain' as voice (app.claude_code_client.get_reply, same tools,
+    same session continuity) — just typed instead of spoken, so there's no
+    STT/TTS step, and the reply goes back as text instead of a voice note."""
+    wiki_dir = wiki_tools.wiki_dir()
+    docs_dir = document_tools.docs_dir()
+    wiki_sync.sync_before(wiki_dir)
+    wiki_sync.sync_before(docs_dir)
+
+    reply_text = get_reply(str(chat_id), text)
+    await telegram.send_text_reply(chat_id, reply_text)
+
+    wiki_sync.sync_after(wiki_dir, f"voice-relay: update from chat {chat_id}")
+    wiki_sync.sync_after(docs_dir, f"voice-relay: update from chat {chat_id}")
+
+
+async def _process_document_message(chat_id: str, file_id: str, filename: str, caption: str | None) -> None:
+    try:
+        await _handle_document_message(chat_id, file_id, filename, caption)
+    except Exception:
+        logger.exception("failed to process document message for chat_id=%s", chat_id)
+        try:
+            await telegram.send_text_reply(
+                chat_id, "Sorry, something went wrong saving that document — please try again."
+            )
+        except Exception:
+            logger.exception("failed to even send the error reply")
+
+
+async def _handle_document_message(chat_id: str, file_id: str, filename: str, caption: str | None) -> None:
+    """Deterministic save (app.tools.document_tools.save_document), not
+    claude-driven — file bytes can't reasonably flow through an MCP
+    tool-call's JSON arguments, so there's nothing for claude to do here."""
+    docs_dir = document_tools.docs_dir()
+    wiki_sync.sync_before(docs_dir)
+
+    file_bytes = await telegram.download_file(file_id)
+    result = document_tools.save_document(filename, file_bytes, title=caption)
+
+    wiki_sync.sync_after(docs_dir, f"voice-relay: document upload from chat {chat_id}")
+
+    await telegram.send_text_reply(chat_id, f'Saved "{result["title"]}".')

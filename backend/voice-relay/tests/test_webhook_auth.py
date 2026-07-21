@@ -47,3 +47,37 @@ def test_extract_voice_message_returns_chat_id_file_id_and_duration():
 
 def test_extract_voice_message_handles_missing_message_key():
     assert telegram.extract_voice_message({"edited_message": {}}) is None
+
+
+def test_extract_document_message_returns_file_id_filename_and_caption():
+    update = {
+        "message": {
+            "chat": {"id": 42},
+            "document": {"file_id": "doc-abc", "file_name": "passport.pdf"},
+            "caption": "my passport scan",
+        }
+    }
+    result = telegram.extract_document_message(update)
+    assert result == {"chat_id": 42, "file_id": "doc-abc", "filename": "passport.pdf", "caption": "my passport scan"}
+
+
+def test_extract_document_message_defaults_caption_to_none_and_filename_when_missing():
+    update = {"message": {"chat": {"id": 42}, "document": {"file_id": "doc-abc"}}}
+    result = telegram.extract_document_message(update)
+    assert result == {"chat_id": 42, "file_id": "doc-abc", "filename": "document", "caption": None}
+
+
+def test_extract_document_message_returns_none_for_voice_message():
+    update = {"message": {"chat": {"id": 1}, "voice": {"file_id": "abc"}}}
+    assert telegram.extract_document_message(update) is None
+
+
+def test_extract_text_message_returns_chat_id_and_text():
+    update = {"message": {"chat": {"id": 42}, "text": "remember my wifi password is hunter2"}}
+    result = telegram.extract_text_message(update)
+    assert result == {"chat_id": 42, "text": "remember my wifi password is hunter2"}
+
+
+def test_extract_text_message_returns_none_for_voice_message():
+    update = {"message": {"chat": {"id": 1}, "voice": {"file_id": "abc"}}}
+    assert telegram.extract_text_message(update) is None

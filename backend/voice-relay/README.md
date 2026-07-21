@@ -6,12 +6,13 @@ See `specs/epics/voice-relay.md` for the full spec, `docs/architecture/voice-rel
 
 ## What it is
 
-A small FastAPI service that:
-1. Receives voice messages via a Telegram bot webhook.
-2. Transcribes them locally (faster-whisper — no account, no per-request billing).
-3. Answers via a headless `claude` CLI call, billed against your Claude Pro/Max subscription's usage allowance rather than a pay-per-token API key (see `docs/architecture/voice-relay.md`'s v2 addendum) — reading the same wiki files `remember`/`recall` use (`docs/db/memory-module.md`) through a local MCP server (`app/mcp_server.py`), not by invoking Claude Code skills directly (which only run inside an interactive Claude Code session).
-4. Can create Google Calendar events directly (its own OAuth credentials, not the Claude Code connector).
-5. Replies with synthesized speech (Piper, also local — see `docs/architecture/voice-relay.md`'s v1.1 addendum) back through Telegram.
+A small FastAPI service that handles three Telegram message types (voice, text, document — v1.4 addendum, `specs/epics/voice-relay.md`):
+
+- **Voice**: transcribed locally (faster-whisper — no account, no per-request billing; restricted to English/Hebrew/Russian, `app/stt.py`), answered, then replied to with synthesized speech (Piper, also local — see `docs/architecture/voice-relay.md`'s v1.1 addendum).
+- **Text**: answered the same way as voice, minus STT/TTS — same "brain," same tools, same conversation continuity, just typed instead of spoken, replied to with text.
+- **Document**: saved directly into the same file+metadata convention the `add-document` skill uses (`docs/db/document-module.md`) — not LLM-driven, since file bytes can't reasonably flow through an MCP tool call; immediately findable afterward via voice or text.
+
+Answering (voice and text) goes through a headless `claude` CLI call, billed against your Claude Pro/Max subscription's usage allowance rather than a pay-per-token API key (see `docs/architecture/voice-relay.md`'s v2 addendum) — reading the same wiki files `remember`/`recall` use (`docs/db/memory-module.md`) through a local MCP server (`app/mcp_server.py`), not by invoking Claude Code skills directly (which only run inside an interactive Claude Code session). It can also create Google Calendar events directly (its own OAuth credentials, not the Claude Code connector).
 
 ## Phase 1 vs. Phase 2
 

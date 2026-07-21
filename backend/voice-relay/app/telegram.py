@@ -56,7 +56,35 @@ def extract_voice_message(update: dict) -> dict | None:
     }
 
 
-async def download_voice(file_id: str) -> bytes:
+def extract_document_message(update: dict) -> dict | None:
+    """Returns {chat_id, file_id, filename, caption} if this update is a
+    document (file) message, else None. caption is None if the document
+    was sent without one."""
+    message = update.get("message")
+    if not message or "document" not in message:
+        return None
+    document = message["document"]
+    return {
+        "chat_id": message["chat"]["id"],
+        "file_id": document["file_id"],
+        "filename": document.get("file_name") or "document",
+        "caption": message.get("caption"),
+    }
+
+
+def extract_text_message(update: dict) -> dict | None:
+    """Returns {chat_id, text} if this update is a plain text message (no
+    voice/document attachment), else None."""
+    message = update.get("message")
+    if not message or "text" not in message:
+        return None
+    return {
+        "chat_id": message["chat"]["id"],
+        "text": message["text"],
+    }
+
+
+async def download_file(file_id: str) -> bytes:
     async with httpx.AsyncClient(timeout=30) as client:
         file_info = await client.get(f"{API_BASE}/getFile", params={"file_id": file_id})
         file_info.raise_for_status()

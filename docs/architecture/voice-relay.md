@@ -6,7 +6,7 @@ Every other Butler capability (Memory, Documents) runs entirely inside a Claude 
 
 ## Module boundaries
 
-1. **Telegram interface** (`app/telegram.py`) — receives voice messages via webhook, sends voice replies.
+1. **Telegram interface** (`app/telegram.py`) — receives voice, text, and document messages via webhook (see v3 addendum below); sends voice or text replies.
 2. **Speech layer** (`app/stt.py`, `app/tts.py`) — local, offline transcription and synthesis (see v1.1 addendum below).
 3. **Reasoning layer** (`app/claude_code_client.py`) — headless Claude Code (`claude -p`, subscription-billed — see v2 addendum below); this is the relay's "brain," standing in for what a Claude Code session + skills would normally do.
 4. **Tools** (`app/tools/`) — `wiki_tools.py`, `calendar_tools.py`, `document_tools.py`, `session_store.py` — the relay's own implementations of memory/calendar/document access, since it cannot invoke Claude Code skills directly.
@@ -89,6 +89,16 @@ The user changed the billing constraint after Phase 2 was already live: no pay-a
 - **VPS image change**: the Dockerfile now installs Node.js + `@anthropic-ai/claude-code` alongside the existing `ffmpeg`/`git`, since the `claude` binary itself is the new runtime dependency.
 - **Trade-off accepted**: Pro/Max usage is rate-limited (weekly caps), not unmetered — acceptable for a single-user assistant, but a real constraint the old pay-per-token design didn't have. Revisit if real usage runs into the cap.
 - **Not reopened**: the v1.1 (local STT/TTS) and v1.2 (VPS hosting) addenda are unaffected — `stt.transcribe()`/`tts.synthesize()` and the Docker Compose/Caddy hosting shape are untouched by this swap.
+
+## v3 addendum — text and document input (specs/epics/voice-relay.md's v1.4)
+
+The webhook handler (`app/main.py`) now branches on message type instead of only ever looking for `voice`:
+
+- **Text**: `telegram.extract_text_message` → `_handle_text_message` calls the exact same `claude_code_client.get_reply(chat_id, text)` voice already uses (same MCP tools, same `--resume` session continuity, same wiki/document sync before and after) — the only difference from voice is skipping `stt.transcribe`/`tts.synthesize` and replying via `send_text_reply` instead of `send_voice_reply`. This means a text conversation and a voice conversation in the same chat share session continuity — Claude Code's own `--resume` doesn't care which input modality produced a given turn.
+- **Document**: `telegram.extract_document_message` → `_handle_document_message` downloads the file and calls `app/tools/document_tools.py`'s new `save_document(filename, content_bytes, title=caption)` directly — **not** through `claude`. File bytes can't reasonably flow through an MCP tool-call's JSON arguments, and the save itself is a deterministic operation (derive a slug, write two files) with nothing for an LLM to reason about, so this deliberately bypasses the `claude` subprocess entirely rather than inventing a way to smuggle binary data through it. Confirmation is a plain `Saved "<title>".` reply, not LLM-phrased.
+- **`save_document`** reuses `docs/db/document-module.md`'s exact sidecar format (same required frontmatter fields, same slug-disambiguation-on-collision philosophy as Memory) — a document saved this way is indistinguishable from one saved by the `add-document` skill, and immediately shows up to `find_document` (already an MCP tool voice/text conversations can call).
+- **Auth model unchanged**: the secret check still runs first, unconditionally, before any payload-shape branching (the same ordering fixed in the original review). The `chat_id` ownership check now runs once, generically, after determining *some* actionable message type was found (voice, document, or text) — a message type none of the three extractors recognize (sticker, photo, etc.) is still silently accepted without a `chat_id` check, same as before, since there's nothing to authorize when nothing is going to be processed either way.
+- **New finding, fixed in the same pass**: `save_document`'s file extension comes straight from the sender's own Telegram filename — unlike `slug` (always passed through `slugify()`), the extension was only `.lower()`'d, not validated, so a crafted filename could smuggle a `/` or `..` into the saved path. Fixed with `VALID_EXT = re.compile(r"^[a-z0-9]{1,10}$")`, falling back to `bin` on anything that doesn't match. See `docs/reviews/voice-relay.md`'s v3 addendum.
 
 ## Lifecycle Status
 

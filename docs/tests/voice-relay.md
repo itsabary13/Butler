@@ -9,7 +9,7 @@ Unlike Memory/Document (natural-language-instructed skills), the voice relay is 
 cd backend/voice-relay
 python -m pytest tests/ -v
 ```
-**Result:** 38/38 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
+**Result:** 53/53 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
 
 ### `test_stt.py` (2 tests)
 
@@ -26,21 +26,23 @@ Exercises `app/tools/wiki_tools.py` against a `tmp_path` wiki directory (`monkey
 - `append_reminder` — creates the reserved `reminders.md` on first use, accumulates (never replaces) on subsequent calls.
 - **Security regression tests** (added during self-review, see `docs/reviews/voice-relay.md`): `test_save_memory_rejects_unsafe_slugs` / `test_read_wiki_page_rejects_unsafe_slugs`, parametrized over path-traversal and shell-unsafe inputs (`../../../etc/passwd`, `..\\..\\windows\\system32\\config`, `foo/bar`, `foo bar`, `""`) — each must raise `UnsafeSlugError` and leave the tmp directory with zero files written.
 
-### `test_webhook_auth.py` (7 tests)
+### `test_webhook_auth.py` (13 tests)
 
 Exercises `app/telegram.py` in isolation (no FastAPI, no network):
 
 - `verify_webhook_secret` / `is_authorized` — correct secret+chat_id passes; wrong path secret, missing header, and wrong chat_id each fail.
-- `extract_voice_message` — a text-only message returns `None`; a voice message returns `{chat_id, file_id}`; a payload with no `message` key returns `None`.
+- `extract_voice_message` — a text-only message returns `None`; a voice message returns `{chat_id, file_id, duration}`; a payload with no `message` key returns `None`.
+- **v1.4 addendum**: `extract_document_message` — returns `{chat_id, file_id, filename, caption}`, defaults `filename` to `"document"` and `caption` to `None` when Telegram omits them, returns `None` for a voice message. `extract_text_message` — returns `{chat_id, text}`, returns `None` for a voice message.
 
-### `test_main_app.py` (7 tests)
+### `test_main_app.py` (11 tests)
 
 `fastapi.testclient.TestClient` against the real `app.main.app` (env vars stubbed in `conftest.py` with fictional placeholder values — no real credentials anywhere in the test suite):
 
 - `GET /health` returns `{"status": "ok"}`.
 - Webhook rejects a wrong path secret (401), and rejects a right-secret-wrong-chat_id request (401).
-- **Auth-ordering regression tests** (added during self-review): a non-voice message with the *wrong* secret still gets 401 (proves the secret check runs before any payload-shape branching); a non-voice message with the *correct* secret gets 200 (proves legitimate non-voice traffic is still silently accepted once authenticated, per `docs/api/voice-relay.md`).
+- **Auth-ordering regression tests** (added during self-review, updated for v1.4's type-branching): an unhandled message type (a sticker, standing in for "any type with no voice/document/text extraction") with the *wrong* secret still gets 401 (proves the secret check runs before any payload-shape branching); the same sticker with the *correct* secret gets 200 (proves legitimate-but-unhandled traffic is still silently accepted once authenticated, not rejected).
 - **Sub-1-second voice messages are dropped before scheduling any work** (`_process_voice_message` monkeypatched to a call-recorder — a `duration: 0` message never reaches it; a `duration: 3` message does), added after live testing showed an accidental tap producing an empty transcript reaching `claude` with nothing to say.
+- **v1.4 addendum**: text and document messages are routed to `_process_text_message`/`_process_document_message` respectively (each monkeypatched to a call-recorder, so these tests never invoke the real pipeline — no live `claude`/Telegram calls in the suite); a text message from a non-owner `chat_id` is rejected (401) before scheduling anything, mirroring the existing voice/chat_id test.
 
 ## v1.1 addendum — local STT/TTS manual round-trip
 
@@ -64,6 +66,13 @@ Added when `app/anthropic_client.py` (direct Anthropic API tool-use loop) was re
 - **Stale-`--resume` fallback** (added after live testing hit "No conversation found with session ID" — a redeploy wipes Claude Code's own session storage even though our TTL still considered the row valid): a `--resume` failure retries once with a fresh session rather than failing the turn; a failure on the fresh retry too still raises `ClaudeCodeError`.
 
 `app/mcp_server.py`'s five `@mcp.tool()` wrappers are deliberately not separately tested — each is a thin pass-through to an `app/tools/*` function already covered by `test_wiki_tools.py` or reviewed by inspection (`calendar_tools.py`, `document_tools.py`); testing the wrapper would just re-assert the same behavior through an extra layer.
+
+## v3 addendum — `test_document_tools.py` (7 tests), text/document webhook routing
+
+Added for v1.4 (text and document input, `specs/epics/voice-relay.md`):
+
+- **`test_document_tools.py`**: `save_document` against a `tmp_path` docs directory (`monkeypatch`ed, never the real `backend/document-module/files/`) — infers a title from the filename when no caption is given; uses the caption as the title when given; disambiguates a slug collision with a `-2` qualifier rather than overwriting; a saved document is immediately findable via `find_document`. **Security regression test** (found during this addendum's self-review, see `docs/reviews/voice-relay.md`): `test_save_document_rejects_unsafe_extension`, parametrized over three traversal-shaped filenames (e.g. `evil.txt/../../root/.ssh/authorized_keys`) — asserts every file the call writes stays a direct child of the docs directory, none escape it.
+- **`test_main_app.py`/`test_webhook_auth.py`**: covered above — text/document extraction and webhook routing, all against mocked processors (no real `claude`/Telegram calls).
 
 ## What's deliberately not tested
 
