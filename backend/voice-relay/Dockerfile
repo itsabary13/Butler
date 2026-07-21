@@ -9,6 +9,13 @@ RUN apt-get update \
     && npm install -g @anthropic-ai/claude-code \
     && rm -rf /var/lib/apt/lists/*
 
+# wiki_sync.py commits to the bind-mounted private wiki/document repos as
+# whatever user runs the container (root, no Dockerfile USER) — git refuses
+# to commit without an identity, and there's no interactive setup step to
+# configure one at runtime, so it's set once at build time instead.
+RUN git config --global user.email "voice-relay@localhost" \
+    && git config --global user.name "Butler Voice Relay"
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
