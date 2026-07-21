@@ -26,6 +26,20 @@ The relay reads/writes `backend/memory-module/wiki/*.md` and `backend/document-m
 
 **Two-writer concurrency**: since both the relay and a desktop Claude Code session can write to the same files, `app/wiki_sync.py` runs `git pull --rebase` before any read or write, and on a push conflict retries once, then logs (not fails) — the write itself already landed locally either way.
 
+## v2 addendum — session_id replaces transcript history
+
+`docs/architecture/voice-relay.md`'s v2 addendum (headless Claude Code, no pay-per-token billing) replaces this table's `history_json` column with the Claude Code session id it now resumes via `--resume` instead of manually replaying a transcript:
+
+```sql
+CREATE TABLE sessions (
+    chat_id TEXT PRIMARY KEY,
+    claude_session_id TEXT NOT NULL,  -- id returned by `claude -p --output-format json`, passed to --resume on the next turn
+    updated_at TEXT NOT NULL          -- ISO 8601, used for TTL expiry (30 min, unchanged)
+);
+```
+
+Same TTL-expiry behavior as before (stale row treated as no-session, not deleted). No change to the wiki/document persistence section below.
+
 ## Lifecycle Status
 
 See `specs/epics/voice-relay.md` — this stage is checked off with this file as its artifact.

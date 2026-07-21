@@ -8,9 +8,9 @@ from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 
 from app import stt, telegram, tts, wiki_sync
-from app.anthropic_client import get_reply
+from app.claude_code_client import get_reply
 from app.config import settings
-from app.tools import document_tools, session_store, wiki_tools
+from app.tools import document_tools, wiki_tools
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("voice_relay.main")
@@ -77,11 +77,7 @@ async def _handle_voice_message(chat_id: str, file_id: str) -> None:
     user_text = stt.transcribe(audio_bytes)
     logger.info("chat_id=%s transcribed: %s", chat_id, user_text)
 
-    history = session_store.get_history(str(chat_id))
-    reply_text = get_reply(user_text, history)
-
-    session_store.append_turn(str(chat_id), "user", user_text)
-    session_store.append_turn(str(chat_id), "assistant", reply_text)
+    reply_text = get_reply(str(chat_id), user_text)
 
     reply_audio = tts.synthesize(reply_text)
     await telegram.send_voice_reply(chat_id, reply_audio)

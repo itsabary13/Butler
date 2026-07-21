@@ -9,7 +9,7 @@ Short-term, per-conversation state — not a memory, not persisted to the wiki. 
 | Field | Type | Notes |
 |---|---|---|
 | `chat_id` | string | Telegram chat identifier. Primary key. |
-| `history` | list of turns (role, text, timestamp) | Recent conversation turns, bounded (last ~8). |
+| `claude_session_id` | string | Headless Claude Code's own session id, passed to `--resume` on the next turn (v2 addendum, `docs/architecture/voice-relay.md`) — supersedes the earlier manually-replayed `history` field. |
 | `updated_at` | datetime | Set on every turn; used for TTL expiry. |
 
 **Invariants**:

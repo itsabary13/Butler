@@ -80,7 +80,8 @@ DOCS_HOST_PATH=/opt/butler-documents
 RELAY_DOMAIN=jarvis.<your-domain>
 ```
 
-- `ANTHROPIC_API_KEY`, Telegram values, Google OAuth values: same as documented in `.env.example` and `README.md`.
+- Telegram values, Google OAuth values: same as documented in `.env.example` and `README.md`.
+- `CLAUDE_CODE_OAUTH_TOKEN`: generate this by installing the `claude` CLI **locally on your own machine** (`npm install -g @anthropic-ai/claude-code`), logging in with your Claude.ai account, then running `claude setup-token` (it needs a browser for the login/consent screen) — paste the printed token into the VPS's `.env`, not run the command on the VPS itself. This bills against your Claude Pro/Max subscription's usage allowance, not a separate pay-per-token API key (`docs/architecture/voice-relay.md`'s v2 addendum).
 - `GOOGLE_OAUTH_REFRESH_TOKEN`: generate this by running `scripts/google_oauth_setup.py` **locally on your own machine** (it needs a browser for the consent screen) — then paste the resulting refresh token into the VPS's `.env`, not run the script on the VPS itself.
 - `PIPER_VOICE_MODEL_PATH`: leave as the default (`models/en_US-lessac-medium.onnx`) — the Dockerfile downloads this voice at image build time.
 
@@ -131,7 +132,7 @@ Session history (`data/sessions.db`) and the wiki/document clones (`/opt/butler-
 
 - Droplet: ~$6/mo (DigitalOcean, 1GB/1vCPU + swap).
 - Domain: ~$10/yr (one-time annual, registrar of your choice).
-- Anthropic API: pay-per-token, separate and already accepted (`README.md`).
+- Answering: billed against your existing Claude Pro/Max subscription's usage allowance (`CLAUDE_CODE_OAUTH_TOKEN`) — no separate pay-per-token API cost. Subject to that plan's normal rate limits.
 - Speech (faster-whisper/Piper) and Google Calendar API: no additional cost.
 
 If real usage shows the 1GB droplet is too slow even with swap, resizing to 2GB is a few clicks in DigitalOcean's dashboard (brief downtime, no redeployment needed) — no need to over-provision up front.

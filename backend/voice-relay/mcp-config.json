@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "butler": {
+      "command": "python",
+      "args": ["-m", "app.mcp_server"]
+    }
+  }
+}

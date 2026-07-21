@@ -9,7 +9,7 @@ See `specs/epics/voice-relay.md` for the full spec, `docs/architecture/voice-rel
 A small FastAPI service that:
 1. Receives voice messages via a Telegram bot webhook.
 2. Transcribes them locally (faster-whisper — no account, no per-request billing).
-3. Answers using its own direct Anthropic API tool-use loop — reading the same wiki files `remember`/`recall` use (`docs/db/memory-module.md`), not by invoking Claude Code skills (which only run inside a Claude Code session).
+3. Answers via a headless `claude` CLI call, billed against your Claude Pro/Max subscription's usage allowance rather than a pay-per-token API key (see `docs/architecture/voice-relay.md`'s v2 addendum) — reading the same wiki files `remember`/`recall` use (`docs/db/memory-module.md`) through a local MCP server (`app/mcp_server.py`), not by invoking Claude Code skills directly (which only run inside an interactive Claude Code session).
 4. Can create Google Calendar events directly (its own OAuth credentials, not the Claude Code connector).
 5. Replies with synthesized speech (Piper, also local — see `docs/architecture/voice-relay.md`'s v1.1 addendum) back through Telegram.
 
@@ -22,15 +22,16 @@ Phase 2 (underway — see `DEPLOY.md`): the same code, deployed to a DigitalOcea
 
 1. `cp .env.example .env` and fill in real values — see comments in that file for what each one is and where to get it.
 2. `pip install -r requirements.txt`
-3. Install `ffmpeg` and make sure it's on your `PATH` (needed to convert Piper's WAV output to Opus/OGG for Telegram voice notes; already included in the Dockerfile for containerized runs). On Windows: `winget install --id Gyan.FFmpeg -e`.
-4. One-time Piper voice download: `python scripts/download_piper_voice.py` (defaults to `en_US-lessac-medium`, ~65MB, cached under `models/` — gitignored). faster-whisper's model downloads/caches automatically the first time it's used, no separate step needed.
-5. One-time Google Calendar OAuth consent: `python scripts/google_oauth_setup.py` (see that script's own comments — do this before running the app for the first time).
-6. `uvicorn app.main:app --reload --port 8000`
-7. Expose it publicly for Telegram's webhook (e.g. `ngrok http 8000`), then register the webhook URL with Telegram (see `app/telegram.py`'s module docstring for the exact `setWebhook` call).
+3. Install the `claude` CLI (`npm install -g @anthropic-ai/claude-code`) and run `claude setup-token` once, logged into your Claude.ai account, to generate `CLAUDE_CODE_OAUTH_TOKEN` for `.env` (see `docs/architecture/voice-relay.md`'s v2 addendum).
+4. Install `ffmpeg` and make sure it's on your `PATH` (needed to convert Piper's WAV output to Opus/OGG for Telegram voice notes; already included in the Dockerfile for containerized runs). On Windows: `winget install --id Gyan.FFmpeg -e`.
+5. One-time Piper voice download: `python scripts/download_piper_voice.py` (defaults to `en_US-lessac-medium`, ~65MB, cached under `models/` — gitignored). faster-whisper's model downloads/caches automatically the first time it's used, no separate step needed.
+6. One-time Google Calendar OAuth consent: `python scripts/google_oauth_setup.py` (see that script's own comments — do this before running the app for the first time).
+7. `uvicorn app.main:app --reload --port 8000`
+8. Expose it publicly for Telegram's webhook (e.g. `ngrok http 8000`), then register the webhook URL with Telegram (see `app/telegram.py`'s module docstring for the exact `setWebhook` call).
 
 ## Important
 
-- This service is billed separately from your Claude Code/claude.ai subscription — it makes its own Anthropic API calls, plus Google Calendar API usage. Speech-to-text and text-to-speech are fully local (faster-whisper, Piper) — no OpenAI or other speech-provider account needed, and no per-request billing for either (see `docs/architecture/voice-relay.md`'s v1.1 addendum).
+- Billed against your existing Claude Pro/Max subscription's usage allowance, not a separate pay-per-token Anthropic API key (see `docs/architecture/voice-relay.md`'s v2 addendum) — plus Google Calendar API usage (free tier). Speech-to-text and text-to-speech are fully local (faster-whisper, Piper) — no OpenAI or other speech-provider account needed, and no per-request billing for either (see `docs/architecture/voice-relay.md`'s v1.1 addendum). Pro/Max usage is subject to that plan's normal rate limits (weekly caps), unlike unmetered pay-per-token billing.
 - On a machine behind a corporate SSL-intercepting proxy, the very first `faster-whisper`/Piper model download may fail with a certificate error even though your browser trusts the site fine — `pip install pip-system-certs` fixes this by making Python's HTTPS libraries trust the same certificate store Windows already does. Only ever needed once, for the download itself.
 - Never put real personal data into anything committed here — same rule as the rest of this repo (`docs/workflow.md`). `.env`, `data/`, and `models/` are gitignored for exactly this reason (`models/` holds large downloaded binaries, not source).
 - Single-user only: the Telegram webhook only processes messages from `TELEGRAM_OWNER_CHAT_ID`; everything else is dropped.

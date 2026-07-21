@@ -16,9 +16,11 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Anthropic
-    anthropic_api_key: str
-    claude_model: str = "claude-sonnet-5"
+    # Claude Code (headless, billed against the Claude Pro/Max subscription's
+    # usage allowance via CLAUDE_CODE_OAUTH_TOKEN — no API key, no pay-per-token
+    # billing; see .env.example and docs/architecture/voice-relay.md's v2 addendum)
+    claude_binary: str = "claude"
+    claude_code_model: str = ""
 
     # Local speech models (faster-whisper STT + Piper TTS — no account, no billing)
     whisper_model_size: str = "small"
@@ -45,7 +47,6 @@ class Settings(BaseSettings):
 
     # Session store
     session_ttl_minutes: int = 30
-    session_max_turns: int = 8
 
 
 settings = Settings()

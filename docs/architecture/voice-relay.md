@@ -8,7 +8,7 @@ Every other Butler capability (Memory, Documents) runs entirely inside a Claude 
 
 1. **Telegram interface** (`app/telegram.py`) — receives voice messages via webhook, sends voice replies.
 2. **Speech layer** (`app/stt.py`, `app/tts.py`) — local, offline transcription and synthesis (see v1.1 addendum below).
-3. **Reasoning layer** (`app/anthropic_client.py`) — direct Anthropic API tool-use loop; this is the relay's "brain," standing in for what a Claude Code session + skills would normally do.
+3. **Reasoning layer** (`app/claude_code_client.py`) — headless Claude Code (`claude -p`, subscription-billed — see v2 addendum below); this is the relay's "brain," standing in for what a Claude Code session + skills would normally do.
 4. **Tools** (`app/tools/`) — `wiki_tools.py`, `calendar_tools.py`, `document_tools.py`, `session_store.py` — the relay's own implementations of memory/calendar/document access, since it cannot invoke Claude Code skills directly.
 5. **Wiki/document sync** (`app/wiki_sync.py`) — keeps the relay's view of the private wiki/document repos current, handles the two-writer race with a desktop Claude Code session.
 
@@ -16,7 +16,7 @@ Every other Butler capability (Memory, Documents) runs entirely inside a Claude 
 
 - **Skills** (`remember`, `recall`, `sync-calendar`, etc.) only run inside a Claude Code session — there's no mechanism to invoke one from an external process.
 - **`claude.ai/code` routines** were considered and rejected for this: routines cannot attach private GitHub repos (confirmed bug, github.com/anthropics/claude-code/issues/64130), and `backend/memory-module/wiki/` is gitignored from the public `Butler` repo specifically so it's never exposed there — a routine cloning the public repo would see the skill definitions but no actual memory data.
-- Instead, the relay makes its own direct Anthropic API calls with its own tool-use loop, operating on the *same file conventions* documented in `docs/db/memory-module.md` — a second implementation against a shared convention, the same relationship `sync-calendar` already has to `remember`. This means the wiki file format itself never changes for this epic.
+- Instead, the relay invokes headless Claude Code itself (see v2 addendum below) against tools operating on the *same file conventions* documented in `docs/db/memory-module.md` — a second implementation against a shared convention, the same relationship `sync-calendar` already has to `remember`. This means the wiki file format itself never changes for this epic.
 
 ## Data flow
 
@@ -27,12 +27,12 @@ Phone (Telegram) --voice note--> Telegram Bot API --webhook--> Voice Relay (Fast
                                                                      |
                                                 download .ogg --> STT (faster-whisper, local)
                                                                      |
-                                                Anthropic Messages API, tool-use loop:
-                                                  - list_wiki_pages / read_wiki_page (+ [[wiki-link]] following)
+                                                headless `claude -p` (subscription-billed), MCP tools:
+                                                  - read_wiki_page (+ [[wiki-link]] following)
                                                   - append_reminder / save_memory
                                                   - create_calendar_event (direct Google Calendar API)
                                                   - find_document (metadata-only)
-                                                + per-chat_id short-term session history (SQLite, TTL)
+                                                + per-chat_id --resume session_id (SQLite, TTL)
                                                                      |
                                                 reply text --> TTS (Piper, local) --> voice note --> Telegram --> phone
 ```
@@ -41,13 +41,13 @@ Phone (Telegram) --voice note--> Telegram Bot API --webhook--> Voice Relay (Fast
 
 - **Python + FastAPI/uvicorn** — matches this repo's existing Python usage (the wiki/document validator scripts), containerizes cleanly for the Phase 2 VPS move.
 - **STT + TTS: local models (faster-whisper + Piper)** — see the v1.1 addendum below; originally OpenAI, replaced before Task 43's live verification.
-- **Anthropic API directly** (not via Claude Code) — `ANTHROPIC_API_KEY`, default model `claude-sonnet-5` (cost/latency-appropriate for short conversational tool-use turns), swappable via `CLAUDE_MODEL` env var.
+- **Headless Claude Code, not a direct Anthropic API key** — see the v2 addendum below; `CLAUDE_CODE_OAUTH_TOKEN` for subscription auth, model swappable via `CLAUDE_CODE_MODEL` env var (blank = CLI default).
 - **Telegram**: raw `httpx` calls to the Bot API — the surface is narrow (one webhook, `getFile`, `sendVoice`/`sendAudio`), not worth a full dispatcher framework.
 - **Google Calendar**: direct `google-api-python-client` calls with a dedicated OAuth "Desktop app" client — separate from and independent of Claude Code's Calendar connector, since this is a different OS process with no access to that connector.
 
 ## Non-functional constraints
 
-- **Billing**: this relay incurs its own Anthropic and Google Calendar API costs, separate from the Claude Code/claude.ai subscription — documented prominently (`README.md`) so it's not a surprise. Speech-to-text/text-to-speech are local (v1.1 addendum below) and carry no per-request billing.
+- **Billing**: answering rides the existing Claude Pro/Max subscription's usage allowance (v2 addendum below), not a separate pay-per-token API cost — the only other ongoing costs are Google Calendar API usage (free tier) and VPS/domain hosting (`DEPLOY.md`). Speech-to-text/text-to-speech are local (v1.1 addendum below) and carry no per-request billing. Documented prominently (`README.md`) so it's not a surprise.
 - **Privacy**: same rule as the rest of the repo — no real personal data in anything committed to the public repo. Secrets live only in `backend/voice-relay/.env` (gitignored).
 - **Concurrency**: the relay and a desktop Claude Code session can both write to the same wiki files. Mitigated with `git pull --rebase` before reads/writes and a retry-once-then-log (not fail) policy on push conflicts — the same "local save stands, backup push failure reported not fatal" philosophy `remember` already established, applied to a two-writer scenario instead of one.
 - **Latency**: STT + each tool-call round trip + TTS + Telegram upload/download all stack. Bounded (not eliminated) by capping wiki-link-following hops per turn (~4).
@@ -78,6 +78,17 @@ Originally deferred ("Phase 2, a separate, future epic", `specs/epics/voice-rela
 - **Deployment**: Docker Compose, two services — the existing `Dockerfile`'s image (`voice-relay`) and `caddy:2` as a reverse proxy providing automatic Let's Encrypt TLS for the Telegram webhook's required HTTPS endpoint.
 - **Persistence**: session store (`data/`), the wiki/document private-repo clones, and the faster-whisper model cache all live outside the container as volumes/bind mounts, so a redeploy (`docker compose up -d --build`) doesn't lose them.
 - **No `app/` code changes** — `wiki_dir()`/`docs_dir()`/`DB_PATH` already resolve correctly given the right `.env` values (absolute container paths instead of local-dev-relative ones); this was purely a hosting/ops change with a new `.env` shape, not a design change. See `backend/voice-relay/DEPLOY.md` for the concrete runbook.
+
+## v2 addendum — headless Claude Code instead of direct Anthropic API billing
+
+The user changed the billing constraint after Phase 2 was already live: no pay-as-you-go API usage at all, only the existing Claude Pro subscription (VPS/domain cost accepted, per-token API cost not). `app/anthropic_client.py`'s direct `anthropic.Anthropic().messages.create()` tool-use loop is exactly the pay-per-token surface that violates that, so it's replaced rather than kept.
+
+- **New answering mechanism**: `app/claude_code_client.py` shells out to the `claude` CLI in headless/non-interactive mode (`claude -p ... --output-format json`), authenticated via `CLAUDE_CODE_OAUTH_TOKEN` (generated once locally with `claude setup-token`, pasted into `.env` — same "generate locally, paste into VPS `.env`" pattern already used for `GOOGLE_OAUTH_REFRESH_TOKEN`). This draws on the Pro/Max subscription's usage allowance, the same quota `claude.ai`/interactive Claude Code draws from, instead of separate per-token billing.
+- **Tools move to MCP**: the five tools (`read_wiki_page`, `save_memory`, `append_reminder`, `create_calendar_event`, `find_document`) are now exposed via a local stdio MCP server (`app/mcp_server.py`, registered in `mcp-config.json`) instead of hand-rolled Anthropic tool-use JSON schemas. The underlying `app/tools/*` implementations — including the reviewed slug path-traversal guard and create-only calendar constraint — are unchanged; only the transport changed. `--allowedTools` is passed as an explicit allowlist of just those 5 MCP tools, so the headless process has no Bash or filesystem access beyond them (least-privilege, same spirit as the webhook's own hard `chat_id` allowlist).
+- **Session history simplifies**: multi-turn context now uses Claude Code's own `--resume <session_id>` instead of manually replaying a capped transcript. `app/tools/session_store.py` stores just the returned `session_id` per `chat_id` (still TTL-bounded, still SQLite) — `docs/db/voice-relay.md`'s `Session.history` field is superseded by `Session.claude_session_id`. The old manual `MAX_TOOL_ROUNDS`/`MAX_WIKI_LINK_HOPS` bookkeeping is gone too — that budgeting is now Claude Code's own concern, not this app's.
+- **VPS image change**: the Dockerfile now installs Node.js + `@anthropic-ai/claude-code` alongside the existing `ffmpeg`/`git`, since the `claude` binary itself is the new runtime dependency.
+- **Trade-off accepted**: Pro/Max usage is rate-limited (weekly caps), not unmetered — acceptable for a single-user assistant, but a real constraint the old pay-per-token design didn't have. Revisit if real usage runs into the cap.
+- **Not reopened**: the v1.1 (local STT/TTS) and v1.2 (VPS hosting) addenda are unaffected — `stt.transcribe()`/`tts.synthesize()` and the Docker Compose/Caddy hosting shape are untouched by this swap.
 
 ## Lifecycle Status
 

@@ -59,6 +59,18 @@ One low note: `app/tts.py` shells out to `ffmpeg` via `subprocess.run(..., check
 
 No new findings. **Verdict: PASS** still holds.
 
+## v2 addendum — headless Claude Code (no pay-per-token billing)
+
+Reviewed the swap from a direct Anthropic API tool-use loop to headless `claude -p` (`docs/architecture/voice-relay.md`'s v2 addendum): `app/claude_code_client.py`, `app/mcp_server.py`, `app/tools/session_store.py`, `mcp-config.json`, `Dockerfile`.
+
+- **Subprocess invocation is not shell-injectable**: `subprocess.run(command, ...)` is called with `command` as a list (no `shell=True`), and the only user-influenced value in it is `user_text` passed as a single argv element to `-p` — it's never interpolated into a shell string, so it can't break out of its argument position.
+- **Tool surface is narrower than before, not wider**: `--allowedTools` is an explicit allowlist of exactly the 5 MCP tools (`mcp__butler__*`); the headless process is given no `Bash`, `Read`, `Write`, or other built-in tool access, so it can't touch the container filesystem beyond what `app/tools/*` itself exposes. This is a stricter boundary than the old design, which only ever offered the same 5 Anthropic tool-use schemas but had no analogous "nothing else exists" enforcement mechanism at the transport level.
+- **`app/tools/*` logic is untouched**: `wiki_tools.py`'s slug validation (`UnsafeSlugError`, the High finding from the original review) and `calendar_tools.py`'s create-only constraint are called through unchanged from `app/mcp_server.py` — the MCP wrappers do no argument transformation before delegating, so neither finding is reopened.
+- **New secret**: `CLAUDE_CODE_OAUTH_TOKEN` replaces `ANTHROPIC_API_KEY` in `.env` (gitignored, same as before) — no change to the project's secret-handling posture, just a different credential.
+- **Error handling**: a non-zero `claude` exit or a response missing `result` raises `ClaudeCodeError`, caught by `main.py`'s existing try/except around `_handle_voice_message` (same pattern already reviewed for `ffmpeg` failures in the v1.1 addendum) — no silent failure mode introduced.
+
+No new findings. **Verdict: PASS** still holds.
+
 ## Lifecycle Status
 
 See `specs/epics/voice-relay.md` — this stage is checked off with this file as its artifact.

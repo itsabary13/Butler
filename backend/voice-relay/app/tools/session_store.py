@@ -1,14 +1,14 @@
-"""Short-term, per-chat_id conversation history (docs/db/voice-relay.md's
-Session store). SQLite so a local dev restart doesn't wipe an
-in-progress test conversation — losing this on restart in production is
-still an accepted Phase 1 limitation, this just makes local iteration
-less annoying.
+"""Per-chat_id Claude Code session id (docs/db/voice-relay.md's Session
+store), TTL-bounded. Multi-turn context itself is Claude Code's own
+--resume mechanism (app/claude_code_client.py) — this table only remembers
+which session id to resume, not conversation text, so a long-idle chat
+starts fresh instead of resuming stale context.
 """
 
-import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Optional
 
 from app.config import settings
 
@@ -22,7 +22,7 @@ def _connect() -> sqlite3.Connection:
         """
         CREATE TABLE IF NOT EXISTS sessions (
             chat_id TEXT PRIMARY KEY,
-            history_json TEXT NOT NULL,
+            claude_session_id TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )
         """
@@ -30,48 +30,40 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
-def get_history(chat_id: str) -> list[dict]:
-    """Returns [] if there's no session or it's past the TTL — a fresh
-    conversation starts either way, per voice-conversation.md's edge case."""
+def get_session_id(chat_id: str) -> Optional[str]:
+    """None if there's no session or it's past the TTL — either way the
+    next call omits --resume and starts a fresh Claude Code session."""
     conn = _connect()
     try:
         row = conn.execute(
-            "SELECT history_json, updated_at FROM sessions WHERE chat_id = ?",
+            "SELECT claude_session_id, updated_at FROM sessions WHERE chat_id = ?",
             (chat_id,),
         ).fetchone()
     finally:
         conn.close()
 
     if row is None:
-        return []
+        return None
 
-    history_json, updated_at = row
+    claude_session_id, updated_at = row
     updated = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
     if datetime.now(timezone.utc) - updated > timedelta(minutes=settings.session_ttl_minutes):
-        return []
-    return json.loads(history_json)
+        return None
+    return claude_session_id
 
 
-def append_turn(chat_id: str, role: str, text: str) -> None:
-    history = get_history(chat_id)
-    history.append({
-        "role": role,
-        "text": text,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    })
-    history = history[-settings.session_max_turns:]
-
+def set_session_id(chat_id: str, claude_session_id: str) -> None:
     conn = _connect()
     try:
         conn.execute(
             """
-            INSERT INTO sessions (chat_id, history_json, updated_at)
+            INSERT INTO sessions (chat_id, claude_session_id, updated_at)
             VALUES (?, ?, ?)
             ON CONFLICT(chat_id) DO UPDATE SET
-                history_json = excluded.history_json,
+                claude_session_id = excluded.claude_session_id,
                 updated_at = excluded.updated_at
             """,
-            (chat_id, json.dumps(history), datetime.now(timezone.utc).isoformat()),
+            (chat_id, claude_session_id, datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()
     finally:

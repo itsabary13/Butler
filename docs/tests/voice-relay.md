@@ -9,7 +9,7 @@ Unlike Memory/Document (natural-language-instructed skills), the voice relay is 
 cd backend/voice-relay
 python -m pytest tests/ -v
 ```
-**Result:** 28/28 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
+**Result:** 32/32 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
 
 ### `test_wiki_tools.py` (16 tests)
 
@@ -48,9 +48,20 @@ Since `app/stt.py`/`app/tts.py` now wrap local models (faster-whisper, Piper) ra
 
 **Result:** the full local speech round-trip works with no OpenAI account, no per-request billing, and no code changes needed in `app/main.py`/`app/anthropic_client.py`/`app/telegram.py`.
 
+## v2 addendum — `test_claude_code_client.py` (4 tests)
+
+Added when `app/anthropic_client.py` (direct Anthropic API tool-use loop) was replaced by `app/claude_code_client.py` (headless `claude -p`, subscription-billed — `docs/architecture/voice-relay.md`'s v2 addendum). Mocks `subprocess.run` — never shells out to a real `claude` binary:
+
+- A fresh chat gets no `--resume` flag, and the `session_id` from a successful JSON response is persisted via `session_store.set_session_id`.
+- A chat with an existing (non-expired) session passes `--resume <session_id>`.
+- A non-zero exit from `claude` raises `ClaudeCodeError` rather than propagating a raw `CalledProcessError` or silently returning empty text.
+- A response JSON missing the `result` field also raises `ClaudeCodeError`, rather than replying with `None`/empty audio.
+
+`app/mcp_server.py`'s five `@mcp.tool()` wrappers are deliberately not separately tested — each is a thin pass-through to an `app/tools/*` function already covered by `test_wiki_tools.py` or reviewed by inspection (`calendar_tools.py`, `document_tools.py`); testing the wrapper would just re-assert the same behavior through an extra layer.
+
 ## What's deliberately not tested
 
-- **No live provider integration test.** There's no automated test that actually calls Anthropic, Telegram, or Google Calendar — those require real credentials, which don't exist yet (see Task 43 / the epic's blocked live-verification step). `app/anthropic_client.py`'s tool-use loop and `app/tools/calendar_tools.py` are exercised only by inspection and by the mocked/stubbed unit tests above, not end-to-end.
+- **No live provider integration test.** There's no automated test that actually invokes the real `claude` CLI, Telegram, or Google Calendar — those require real credentials/subscription auth, which don't exist yet (see Task 43 / the epic's blocked live-verification step). `app/claude_code_client.py`'s subprocess invocation and `app/tools/calendar_tools.py` are exercised only by inspection and by the mocked/stubbed unit tests above, not end-to-end.
 - **`app/stt.py`/`app/tts.py` (local faster-whisper/Piper, v1.1 addendum) have no automated pytest coverage** — they were instead verified with a manual local round-trip (see below), since exercising them in the automated suite would mean downloading multi-hundred-MB models on every test run. `conftest.py` sets a fictional `PIPER_VOICE_MODEL_PATH` only so `Settings()` constructs without error; no test actually loads a model.
 - **The Definition of Done checklist in the plan** (voice message → transcribed → wiki-aware reply → spoken back; calendar event actually created; session follow-up resolves "actually make it 2pm"; restart data-durability; wrong-secret/wrong-chat_id rejection) is only partially covered by the automated suite (the rejection case is). The rest requires the live run in Task 43.
 - **Wiki two-writer concurrency** (`app/wiki_sync.py`'s pull-rebase-retry-once behavior) is implemented but not tested under a real concurrent-write race — acceptable to defer; the retry-once-then-log policy mirrors `remember`'s already-accepted "local save stands, backup push failure is reported not fatal" philosophy.

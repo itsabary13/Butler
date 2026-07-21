@@ -45,6 +45,10 @@ While setting up real credentials for the live-verification step (Task 43), the 
 
 Phase 2 (VPS hosting) was explicitly deferred as "a separate, future epic" above, but moved up sooner than planned: setting up real Telegram credentials for Task 43's live verification surfaced that the machine being used sits behind a corporate proxy that blocks `api.telegram.org` outright, which would block the relay's Telegram traffic entirely, not just complicate testing. Rather than work around that per-network, moving straight to a DigitalOcean-hosted deployment resolves it permanently and was coming "soon" regardless. See `docs/architecture/voice-relay.md`'s v1.2 addendum and `backend/voice-relay/DEPLOY.md` for the deployment details. No scope, requirements, or domain/API/DB changes — same component, different hosting.
 
+## v1.3 addendum — no pay-as-you-go API usage, subscription only
+
+Constraint changed after Phase 2 was already live: VPS/domain cost stays accepted, but no pay-per-token Anthropic API billing at all — only the existing Claude Pro subscription. This supersedes the "Billed separately... pay-per-token" bullet in "Fixed constraints for v1" above. The relay now answers via headless Claude Code (`claude -p`, authenticated with `CLAUDE_CODE_OAUTH_TOKEN`) instead of a direct Anthropic API tool-use loop, drawing on the Pro plan's usage allowance instead of separate billing. Tools move from hand-rolled Anthropic tool-use schemas to a local MCP server exposing the same `app/tools/*` implementations. No scope change — same five tools, same wiki/calendar/document behavior. See `docs/architecture/voice-relay.md`'s v2 addendum for the full design and `docs/db/voice-relay.md`/`docs/domain/voice-relay.md` for the resulting `Session` schema change (a Claude Code `session_id` instead of a replayed transcript).
+
 ## Lifecycle Status
 
 - [x] Epic / User Stories / Functional Requirements — requirements-analyst — `specs/stories/voice-relay/`
