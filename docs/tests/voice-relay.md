@@ -9,7 +9,11 @@ Unlike Memory/Document (natural-language-instructed skills), the voice relay is 
 cd backend/voice-relay
 python -m pytest tests/ -v
 ```
-**Result:** 32/32 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
+**Result:** 34/34 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
+
+### `test_stt.py` (2 tests)
+
+Added when live testing showed Whisper's unrestricted ~99-language auto-detection misdetecting a real Hebrew message. `app/stt.py`'s `_detect_allowed_language` now restricts detection to `ALLOWED_LANGUAGES = ("en", "he", "ru")`; tested against a fake model (no real model load) confirming the highest-scoring *allowed* language wins even when a disallowed language scored higher overall.
 
 ### `test_wiki_tools.py` (16 tests)
 

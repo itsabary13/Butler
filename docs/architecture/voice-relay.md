@@ -40,7 +40,7 @@ Phone (Telegram) --voice note--> Telegram Bot API --webhook--> Voice Relay (Fast
 ## Technology decisions
 
 - **Python + FastAPI/uvicorn** — matches this repo's existing Python usage (the wiki/document validator scripts), containerizes cleanly for the Phase 2 VPS move.
-- **STT + TTS: local models (faster-whisper + Piper)** — see the v1.1 addendum below; originally OpenAI, replaced before Task 43's live verification.
+- **STT + TTS: local models (faster-whisper + Piper)** — see the v1.1 addendum below; originally OpenAI, replaced before Task 43's live verification. STT restricts language detection to `en`/`he`/`ru` (`app/stt.py`'s `ALLOWED_LANGUAGES`) rather than Whisper's unrestricted ~99-language guess, after live testing misdetected a real Hebrew message.
 - **Headless Claude Code, not a direct Anthropic API key** — see the v2 addendum below; `CLAUDE_CODE_OAUTH_TOKEN` for subscription auth, model swappable via `CLAUDE_CODE_MODEL` env var (blank = CLI default).
 - **Telegram**: raw `httpx` calls to the Bot API — the surface is narrow (one webhook, `getFile`, `sendVoice`/`sendAudio`), not worth a full dispatcher framework.
 - **Google Calendar**: direct `google-api-python-client` calls with a dedicated OAuth "Desktop app" client — separate from and independent of Claude Code's Calendar connector, since this is a different OS process with no access to that connector.
