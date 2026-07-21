@@ -72,6 +72,23 @@ def extract_document_message(update: dict) -> dict | None:
     }
 
 
+def extract_photo_message(update: dict) -> dict | None:
+    """Returns {chat_id, file_id, caption} if this update is a photo
+    message, else None. Telegram sends multiple resolutions per photo
+    (message.photo is a list of PhotoSize, ordered smallest to largest) —
+    file_id is the highest-resolution one. Unlike a document upload, a
+    photo never carries an original filename; the caller defaults one."""
+    message = update.get("message")
+    if not message or not message.get("photo"):
+        return None
+    largest = message["photo"][-1]
+    return {
+        "chat_id": message["chat"]["id"],
+        "file_id": largest["file_id"],
+        "caption": message.get("caption"),
+    }
+
+
 def extract_text_message(update: dict) -> dict | None:
     """Returns {chat_id, text} if this update is a plain text message (no
     voice/document attachment), else None."""

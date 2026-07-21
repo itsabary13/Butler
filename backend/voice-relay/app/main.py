@@ -44,12 +44,17 @@ async def telegram_webhook(
 
     voice = telegram.extract_voice_message(update)
     document = telegram.extract_document_message(update) if voice is None else None
-    text = telegram.extract_text_message(update) if voice is None and document is None else None
+    photo = telegram.extract_photo_message(update) if voice is None and document is None else None
+    text = (
+        telegram.extract_text_message(update)
+        if voice is None and document is None and photo is None
+        else None
+    )
 
-    payload = voice or document or text
+    payload = voice or document or photo or text
     if payload is None:
-        # Not a message type we act on (sticker, photo, edited_message,
-        # etc.) — silently ignore, same as before: once the secret above is
+        # Not a message type we act on (sticker, edited_message, etc.) —
+        # silently ignore, same as before: once the secret above is
         # confirmed authentic, there's nothing to authorize here since
         # nothing is going to be processed either way.
         return JSONResponse({})
@@ -81,6 +86,13 @@ async def telegram_webhook(
     elif document is not None:
         background_tasks.add_task(
             _process_document_message, chat_id, document["file_id"], document["filename"], document["caption"]
+        )
+    elif photo is not None:
+        # A photo has no original filename (unlike a document upload) — the
+        # same save_document/document_tools.py convention just needs one to
+        # derive a slug/extension from, so a generic default stands in.
+        background_tasks.add_task(
+            _process_document_message, chat_id, photo["file_id"], "photo.jpg", photo["caption"]
         )
     else:
         background_tasks.add_task(_process_text_message, chat_id, text["text"])

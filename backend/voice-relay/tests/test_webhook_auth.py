@@ -72,6 +72,37 @@ def test_extract_document_message_returns_none_for_voice_message():
     assert telegram.extract_document_message(update) is None
 
 
+def test_extract_photo_message_uses_highest_resolution_and_caption():
+    update = {
+        "message": {
+            "chat": {"id": 42},
+            "photo": [
+                {"file_id": "small", "width": 90, "height": 90},
+                {"file_id": "large", "width": 1280, "height": 1280},
+            ],
+            "caption": "my new plant",
+        }
+    }
+    result = telegram.extract_photo_message(update)
+    assert result == {"chat_id": 42, "file_id": "large", "caption": "my new plant"}
+
+
+def test_extract_photo_message_defaults_caption_to_none():
+    update = {"message": {"chat": {"id": 42}, "photo": [{"file_id": "only-one"}]}}
+    result = telegram.extract_photo_message(update)
+    assert result == {"chat_id": 42, "file_id": "only-one", "caption": None}
+
+
+def test_extract_photo_message_returns_none_for_voice_message():
+    update = {"message": {"chat": {"id": 1}, "voice": {"file_id": "abc"}}}
+    assert telegram.extract_photo_message(update) is None
+
+
+def test_extract_photo_message_returns_none_for_empty_photo_list():
+    update = {"message": {"chat": {"id": 1}, "photo": []}}
+    assert telegram.extract_photo_message(update) is None
+
+
 def test_extract_text_message_returns_chat_id_and_text():
     update = {"message": {"chat": {"id": 42}, "text": "remember my wifi password is hunter2"}}
     result = telegram.extract_text_message(update)

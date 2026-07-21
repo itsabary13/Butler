@@ -9,7 +9,7 @@ Unlike Memory/Document (natural-language-instructed skills), the voice relay is 
 cd backend/voice-relay
 python -m pytest tests/ -v
 ```
-**Result:** 53/53 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
+**Result:** 58/58 pass (1 cosmetic `StarletteDeprecationWarning` from `httpx`/`starlette.testclient`, not a real issue).
 
 ### `test_stt.py` (2 tests)
 
@@ -26,13 +26,13 @@ Exercises `app/tools/wiki_tools.py` against a `tmp_path` wiki directory (`monkey
 - `append_reminder` — creates the reserved `reminders.md` on first use, accumulates (never replaces) on subsequent calls.
 - **Security regression tests** (added during self-review, see `docs/reviews/voice-relay.md`): `test_save_memory_rejects_unsafe_slugs` / `test_read_wiki_page_rejects_unsafe_slugs`, parametrized over path-traversal and shell-unsafe inputs (`../../../etc/passwd`, `..\\..\\windows\\system32\\config`, `foo/bar`, `foo bar`, `""`) — each must raise `UnsafeSlugError` and leave the tmp directory with zero files written.
 
-### `test_webhook_auth.py` (13 tests)
+### `test_webhook_auth.py` (16 tests)
 
 Exercises `app/telegram.py` in isolation (no FastAPI, no network):
 
 - `verify_webhook_secret` / `is_authorized` — correct secret+chat_id passes; wrong path secret, missing header, and wrong chat_id each fail.
 - `extract_voice_message` — a text-only message returns `None`; a voice message returns `{chat_id, file_id, duration}`; a payload with no `message` key returns `None`.
-- **v1.4 addendum**: `extract_document_message` — returns `{chat_id, file_id, filename, caption}`, defaults `filename` to `"document"` and `caption` to `None` when Telegram omits them, returns `None` for a voice message. `extract_text_message` — returns `{chat_id, text}`, returns `None` for a voice message.
+- **v1.4 addendum**: `extract_document_message` — returns `{chat_id, file_id, filename, caption}`, defaults `filename` to `"document"` and `caption` to `None` when Telegram omits them, returns `None` for a voice message. `extract_text_message` — returns `{chat_id, text}`, returns `None` for a voice message. `extract_photo_message` (added after live testing showed images sent via the Photo picker were silently dropped) — picks the highest-resolution `PhotoSize`, defaults `caption` to `None`, returns `None` for a voice message or an empty photo list.
 
 ### `test_main_app.py` (11 tests)
 
@@ -42,7 +42,7 @@ Exercises `app/telegram.py` in isolation (no FastAPI, no network):
 - Webhook rejects a wrong path secret (401), and rejects a right-secret-wrong-chat_id request (401).
 - **Auth-ordering regression tests** (added during self-review, updated for v1.4's type-branching): an unhandled message type (a sticker, standing in for "any type with no voice/document/text extraction") with the *wrong* secret still gets 401 (proves the secret check runs before any payload-shape branching); the same sticker with the *correct* secret gets 200 (proves legitimate-but-unhandled traffic is still silently accepted once authenticated, not rejected).
 - **Sub-1-second voice messages are dropped before scheduling any work** (`_process_voice_message` monkeypatched to a call-recorder — a `duration: 0` message never reaches it; a `duration: 3` message does), added after live testing showed an accidental tap producing an empty transcript reaching `claude` with nothing to say.
-- **v1.4 addendum**: text and document messages are routed to `_process_text_message`/`_process_document_message` respectively (each monkeypatched to a call-recorder, so these tests never invoke the real pipeline — no live `claude`/Telegram calls in the suite); a text message from a non-owner `chat_id` is rejected (401) before scheduling anything, mirroring the existing voice/chat_id test.
+- **v1.4 addendum**: text and document messages are routed to `_process_text_message`/`_process_document_message` respectively (each monkeypatched to a call-recorder, so these tests never invoke the real pipeline — no live `claude`/Telegram calls in the suite); a text message from a non-owner `chat_id` is rejected (401) before scheduling anything, mirroring the existing voice/chat_id test. A photo message also routes to `_process_document_message` (same call-recorder), asserting the synthesized `"photo.jpg"` filename and the highest-resolution `file_id`.
 
 ## v1.1 addendum — local STT/TTS manual round-trip
 
