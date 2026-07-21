@@ -4,7 +4,7 @@ See docs/api/voice-relay.md for the full API design.
 
 import logging
 
-from fastapi import FastAPI, Header, Request
+from fastapi import BackgroundTasks, FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 
 from app import stt, telegram, tts, wiki_sync
@@ -27,6 +27,7 @@ async def health():
 async def telegram_webhook(
     secret: str,
     request: Request,
+    background_tasks: BackgroundTasks,
     x_telegram_bot_api_secret_token: str | None = Header(default=None),
 ):
     # Check the secret first, for every request, regardless of payload shape —
@@ -53,8 +54,19 @@ async def telegram_webhook(
         logger.warning("rejected webhook call from non-owner chat_id=%s", chat_id)
         return JSONResponse({}, status_code=401)
 
+    # Ack Telegram immediately and do the real work in the background — the
+    # full pipeline (STT + the claude subprocess call + TTS) can easily run
+    # past Telegram's webhook response window, and Telegram re-delivers the
+    # same update (reprocessing it from scratch) if it doesn't see a fast
+    # 200. The actual reply goes out via a separate sendVoice call below
+    # regardless, so the webhook response body was never carrying it.
+    background_tasks.add_task(_process_voice_message, chat_id, voice["file_id"])
+    return JSONResponse({})
+
+
+async def _process_voice_message(chat_id: str, file_id: str) -> None:
     try:
-        await _handle_voice_message(chat_id, voice["file_id"])
+        await _handle_voice_message(chat_id, file_id)
     except Exception:
         logger.exception("failed to process voice message for chat_id=%s", chat_id)
         try:
@@ -63,8 +75,6 @@ async def telegram_webhook(
             )
         except Exception:
             logger.exception("failed to even send the error reply")
-
-    return JSONResponse({})
 
 
 async def _handle_voice_message(chat_id: str, file_id: str) -> None:
