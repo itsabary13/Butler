@@ -72,6 +72,12 @@ While setting up real credentials for Task 43 (live verification), the user decl
 - Verified locally end-to-end (piper → ffmpeg → Opus bytes → faster-whisper transcription) with zero `OPENAI_API_KEY` anywhere — see `docs/tests/voice-relay.md`.
 - No change to `app/main.py`/`app/anthropic_client.py`/`app/telegram.py` — `stt.transcribe()`/`tts.synthesize()` keep the same interface, so this was a pure implementation swap behind an unchanged boundary.
 
+### Found live, fixed — no Piper voice exists for Hebrew
+
+A real Hebrew voice message got back a long, garbled, nonsensical voice reply. Root cause: Claude naturally replies in the same language it's addressed in (nothing forces English), and Piper — unlike a cloud TTS API — has a fixed per-language voice catalog with no Hebrew voice in it at all (confirmed against `rhasspy/piper`'s own voice list; Russian has voices, Hebrew doesn't). Feeding the loaded English voice Hebrew text doesn't fail — it mispronounces every word against English phoneme rules, producing exactly that kind of garbled audio instead of a clean error.
+
+`stt.transcribe()` now returns `(text, language)` instead of just `text` — the detected language was already being computed internally (`ALLOWED_LANGUAGES` restriction, above) but discarded before this fix. `tts.UNSUPPORTED_LANGUAGES` (currently just `{"he"}`) documents which of `ALLOWED_LANGUAGES` Piper genuinely cannot speak. `app/main.py`'s `_handle_voice_message` checks the detected language against it and sends a normal text reply instead of attempting synthesis when it matches — reusing the same `send_text_reply` path the text-message handler already uses, rather than adding a new reply mechanism. No cloud TTS fallback added (would reopen the per-request-billing/account trade-off this addendum specifically avoided); revisit only if a real offline Hebrew voice becomes available.
+
 ## v1.2 addendum — Phase 2: VPS deployment
 
 Originally deferred ("Phase 2, a separate, future epic", `specs/epics/voice-relay.md`), moved up when a corporate laptop's network turned out to block `api.telegram.org` outright (a proxy policy denying the "Chat/Instant Messaging" category) — blocking Phase 1's own local verification, not just incidental to it. A VPS has its own unrestricted connection, so it resolves this permanently rather than working around it network-by-network.

@@ -39,9 +39,14 @@ def _detect_allowed_language(model: WhisperModel, audio) -> str:
     return max(allowed, key=lambda pair: pair[1])[0]
 
 
-def transcribe(audio_bytes: bytes) -> str:
+def transcribe(audio_bytes: bytes) -> tuple[str, str]:
+    """Returns (text, language) — the caller (app/main.py) needs the
+    detected language too, to know whether tts.synthesize can actually
+    speak a same-language reply back (it can't for Hebrew; see
+    tts.UNSUPPORTED_LANGUAGES) or should fall back to a text reply."""
     model = _get_model()
     audio = decode_audio(io.BytesIO(audio_bytes))
     language = _detect_allowed_language(model, audio)
     segments, _info = model.transcribe(audio, language=language)
-    return " ".join(segment.text.strip() for segment in segments).strip()
+    text = " ".join(segment.text.strip() for segment in segments).strip()
+    return text, language

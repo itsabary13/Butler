@@ -55,6 +55,15 @@ Since `app/stt.py`/`app/tts.py` now wrap local models (faster-whisper, Piper) ra
 
 **Result:** the full local speech round-trip works with no OpenAI account, no per-request billing, and no code changes needed in `app/main.py`/`app/anthropic_client.py`/`app/telegram.py`.
 
+### Found live, fixed — `test_voice_reply_language_gate.py` (2 tests)
+
+A real Hebrew voice message got back a garbled, absurd-sounding voice reply — Piper has no Hebrew voice at all, so it mispronounced the (correctly-transcribed, correctly Hebrew-replied) text using its English voice model instead. Fixed in `docs/architecture/voice-relay.md`'s v1.1 addendum ("Found live, fixed" note); `stt.transcribe()` now returns `(text, language)`, and `app/main.py` sends a text reply instead of attempting synthesis when the language is in `tts.UNSUPPORTED_LANGUAGES`.
+
+- **`test_hebrew_reply_sends_text_not_voice`**: with `stt.transcribe` stubbed to return `("שלום", "he")`, asserts `tts.synthesize` is never called and the reply reaches the user via `send_text_reply`, not `send_voice_reply`.
+- **`test_english_reply_still_sends_voice`**: same setup with `("hello", "en")` — confirms the gate doesn't affect the normal (Piper-supported) path, reply still goes out as a voice note.
+
+Runs `main._handle_voice_message` directly via `asyncio.run` (no pytest-asyncio dependency added, consistent with keeping this suite's dependency footprint minimal) with `wiki_sync`/`wiki_tools`/`document_tools` stubbed out — same "no live provider calls" rule as the rest of this suite.
+
 ## v2 addendum — `test_claude_code_client.py` (6 tests)
 
 Added when `app/anthropic_client.py` (direct Anthropic API tool-use loop) was replaced by `app/claude_code_client.py` (headless `claude -p`, subscription-billed — `docs/architecture/voice-relay.md`'s v2 addendum). Mocks `subprocess.run` — never shells out to a real `claude` binary:

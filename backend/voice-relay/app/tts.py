@@ -17,6 +17,15 @@ from app.config import settings
 
 _voice: PiperVoice | None = None
 
+# Piper has no Hebrew voice in its catalog at all (confirmed against
+# rhasspy/piper's VOICES.md) — unlike "en"/"ru", which do have voices even
+# though only one is ever loaded at a time (PIPER_VOICE_MODEL_PATH). Feeding
+# Hebrew text to the loaded English voice doesn't fail, it just mispronounces
+# every word against English phoneme rules — confirmed live, producing a
+# long, garbled reply instead of a clean error. app/main.py checks this set
+# before calling synthesize() and sends a text reply instead for these.
+UNSUPPORTED_LANGUAGES = frozenset({"he"})
+
 
 def _get_voice() -> PiperVoice:
     global _voice

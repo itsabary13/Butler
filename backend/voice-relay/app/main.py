@@ -139,13 +139,19 @@ async def _handle_voice_message(chat_id: str, file_id: str) -> None:
     wiki_sync.sync_before(docs_dir)
 
     audio_bytes = await telegram.download_file(file_id)
-    user_text = stt.transcribe(audio_bytes)
-    logger.info("chat_id=%s transcribed: %s", chat_id, user_text)
+    user_text, language = stt.transcribe(audio_bytes)
+    logger.info("chat_id=%s transcribed (%s): %s", chat_id, language, user_text)
 
     reply_text = get_reply(str(chat_id), user_text)
 
-    reply_audio = tts.synthesize(reply_text)
-    await telegram.send_voice_reply(chat_id, reply_audio)
+    if language in tts.UNSUPPORTED_LANGUAGES:
+        # Claude naturally replies in the same language it was spoken to,
+        # and Piper has no voice for this one — send text rather than
+        # synthesizing gibberish (see tts.UNSUPPORTED_LANGUAGES).
+        await telegram.send_text_reply(chat_id, reply_text)
+    else:
+        reply_audio = tts.synthesize(reply_text)
+        await telegram.send_voice_reply(chat_id, reply_audio)
 
     wiki_sync.sync_after(wiki_dir, f"voice-relay: update from chat {chat_id}")
     wiki_sync.sync_after(docs_dir, f"voice-relay: update from chat {chat_id}")

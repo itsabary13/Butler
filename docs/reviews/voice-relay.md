@@ -59,6 +59,14 @@ One low note: `app/tts.py` shells out to `ffmpeg` via `subprocess.run(..., check
 
 No new findings. **Verdict: PASS** still holds.
 
+### High (found live, fixed) — Hebrew replies were unintelligible, not just accented
+
+Confirmed live: a real Hebrew voice message got back a long, garbled, absurd-sounding voice reply. Not a transcription bug (STT correctly identified Hebrew and transcribed it, per this addendum's `ALLOWED_LANGUAGES` restriction) and not a Claude bug (it correctly replied in Hebrew, matching the input language) — the break was purely in `tts.py`: Piper's voice catalog has no Hebrew voice at all, so the single loaded English voice mispronounced the Hebrew reply text word-for-word using English phoneme rules, rather than failing loudly. A user enabling voice input in Hebrew — a language this relay explicitly supports for STT — would get an incomprehensible reply every single time, not an occasional glitch.
+
+**Fix applied**: `stt.transcribe()` now returns the language it already internally detects, alongside the text. `tts.UNSUPPORTED_LANGUAGES` names which supported input languages Piper genuinely cannot voice (`{"he"}` today — Russian has Piper voices even though only one voice is ever loaded, so it isn't included). `app/main.py`'s `_handle_voice_message` checks this before calling `tts.synthesize()` and falls back to `telegram.send_text_reply` — the same function the text-message path already uses — rather than ever handing Piper text it can't pronounce. Considered and rejected: forcing Claude to always reply in English (defeats the reason Hebrew was added as an input language), and adding a cloud Hebrew TTS provider (reopens the per-request-billing/account trade-off this addendum specifically avoided). Added `test_voice_reply_language_gate.py` (2 tests): Hebrew routes to text with `tts.synthesize` never called, English is unaffected and still gets a voice reply.
+
+No other High or Medium findings. **Verdict: PASS.**
+
 ## v2 addendum — headless Claude Code (no pay-per-token billing)
 
 Reviewed the swap from a direct Anthropic API tool-use loop to headless `claude -p` (`docs/architecture/voice-relay.md`'s v2 addendum): `app/claude_code_client.py`, `app/mcp_server.py`, `app/tools/session_store.py`, `mcp-config.json`, `Dockerfile`.
