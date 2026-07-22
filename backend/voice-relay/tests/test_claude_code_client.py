@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from app import claude_code_client
-from app.tools import session_store
+from app.tools import notification_store, session_store
 
 
 class _FakeCompletedProcess:
@@ -21,6 +21,7 @@ class _FakeCompletedProcess:
 @pytest.fixture(autouse=True)
 def _isolated_session_db(monkeypatch, tmp_path):
     monkeypatch.setattr(session_store, "DB_PATH", tmp_path / "sessions.db")
+    monkeypatch.setattr(notification_store, "DB_PATH", tmp_path / "notifications.db")
 
 
 def test_get_reply_returns_result_and_stores_session_id(monkeypatch):
@@ -181,3 +182,28 @@ def test_run_proactive_check_falls_back_to_message_on_failure(monkeypatch):
     summary = claude_code_client.run_proactive_check()
 
     assert "scan failed" in summary.lower()
+
+
+def test_run_proactive_check_surfaces_prior_dedup_keys_in_the_prompt(monkeypatch):
+    # Regression: a fuzzy/wiki-derived item (no natural stable id, unlike a
+    # Calendar event) was drifting to a different dedup_key every run,
+    # silently defeating was_recently_sent's dedup — because this is a
+    # fresh, non-resumed invocation each time, the model has no memory of
+    # what key it used yesterday unless the prompt tells it.
+    notification_store.record_proposal("annual-checkup-due", "You're overdue for a checkup.")
+    proposals = notification_store.get_proposals_since("2020-01-01T00:00:00+00:00")
+    notification_store.mark_status(proposals[0]["id"], "sent")
+
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        return _FakeCompletedProcess(json.dumps({"result": "no action items today."}))
+
+    monkeypatch.setattr(claude_code_client.subprocess, "run", fake_run)
+
+    claude_code_client.run_proactive_check()
+
+    prompt = captured["command"][captured["command"].index("-p") + 1]
+    assert "annual-checkup-due" in prompt
+    assert "You're overdue for a checkup." in prompt

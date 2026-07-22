@@ -97,6 +97,28 @@ def mark_status(row_id: int, status: str) -> None:
         conn.close()
 
 
+def get_recent(days: int) -> list[dict]:
+    """Every notification (any status) proposed in the last `days` days,
+    most recent first — fed into the proactive scan's own prompt
+    (app/claude_code_client.py's run_proactive_check) so the model can
+    reuse the SAME dedup_key for something it already flagged, rather than
+    inventing a new one each run. Without this, a fuzzy/wiki-derived item
+    (no natural stable id, unlike a Calendar event) would drift to a
+    different key every day — a run has no memory of a prior run's own
+    keys otherwise, since it's a fresh, non-resumed claude invocation —
+    which would silently defeat was_recently_sent's dedup entirely."""
+    conn = _connect()
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        rows = conn.execute(
+            "SELECT dedup_key, message, status, proposed_at FROM notifications WHERE proposed_at >= ? ORDER BY proposed_at DESC",
+            (cutoff,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [{"dedup_key": r[0], "message": r[1], "status": r[2], "proposed_at": r[3]} for r in rows]
+
+
 def sent_count_last_24h() -> int:
     conn = _connect()
     try:

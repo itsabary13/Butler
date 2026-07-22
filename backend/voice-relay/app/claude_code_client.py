@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import settings
-from app.tools import session_store, wiki_tools
+from app.tools import notification_store, session_store, wiki_tools
 
 logger = logging.getLogger("voice_relay.claude_code_client")
 
@@ -222,6 +222,24 @@ Reply with one short sentence summarizing what you did."""
     return (payload.get("result") or "").strip() or "Saved."
 
 
+def _recent_notifications_context() -> str:
+    """Every notification proposed in the last PROACTIVE_COOLDOWN_DAYS,
+    fed into run_proactive_check's own prompt so the model can reuse a
+    prior dedup_key for the same underlying thing rather than inventing a
+    new one each run — this is a fresh, non-resumed invocation every time,
+    so without this it has literally no memory of what key it used
+    yesterday. Critical for fuzzy/wiki-derived items with no natural
+    stable id (a Calendar event's own id is naturally stable regardless;
+    this is what makes the difference for something like "checkup due")."""
+    recent = notification_store.get_recent(settings.proactive_cooldown_days)
+    if not recent:
+        return "(none in the lookback window)"
+    return "\n".join(
+        f'- dedup_key={n["dedup_key"]!r} status={n["status"]} ({n["proposed_at"]}): {n["message"]}'
+        for n in recent
+    )
+
+
 def run_proactive_check() -> str:
     """Once-daily unattended scan (app/proactive.py) for genuine action
     items — an imminent calendar appointment, a clearly overdue recurring
@@ -237,9 +255,16 @@ def run_proactive_check() -> str:
     The return value is informational only (logged), not delivered
     anywhere directly.
     """
-    prompt = """Daily proactive scan. Review the memory wiki manifest above, read the
+    prompt = f"""Daily proactive scan. Review the memory wiki manifest above, read the
 "reminders" page and any other wiki pages that look relevant, and call
 list_upcoming_events to see what's on the calendar.
+
+Notifications proposed in recent runs — if you're flagging the SAME
+underlying appointment/pattern again (it's still true, still unaddressed),
+you MUST reuse the exact dedup_key shown below for it rather than inventing
+a new one, or it will be treated as a brand new item and re-sent even
+though it was already sent recently:
+{_recent_notifications_context()}
 
 For each genuinely actionable, high-confidence item worth an unprompted
 interruption — an imminent appointment, a reminder that's due, a clearly
@@ -248,8 +273,8 @@ renewal is now well past its usual interval) — call propose_notification
 once, with:
 - dedup_key: stable across days for the same underlying thing (a Calendar
   event's own id for an appointment; a short descriptive slug like
-  "annual-checkup-due" for a fuzzy/recurring item) — never invent a new key
-  for something you've already flagged before.
+  "annual-checkup-due" for a fuzzy/recurring item) — reuse a key from the
+  list above if this is the same thing being flagged again.
 - message: short, natural, ready to speak or read as-is.
 
 Be conservative. Most days should produce zero proposals — only propose

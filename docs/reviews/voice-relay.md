@@ -124,7 +124,15 @@ This got the most scrutiny of any addendum so far — it's the first unattended,
 
 Added `test_proactive_allowed_tools_has_no_send_capable_or_filesystem_tool` (`test_claude_code_client.py`) during this review pass, asserting `PROACTIVE_ALLOWED_TOOLS` directly rather than relying on inspection alone — catches a future edit accidentally widening the allowlist.
 
-No High or Medium findings. **Verdict: PASS.**
+### High (found live, fixed) — dedup silently defeated for fuzzy/wiki-derived items
+
+Confirmed during the manual live-verification pass (`DEPLOY.md`): running the daily scan twice in a row sent the *same* notification twice, even though `was_recently_sent`'s cooldown logic was already correct and already unit-tested. Root cause was upstream of the gate entirely: `run_proactive_check` has no `--resume`, so each run starts with zero memory of the previous one. A Calendar-backed item's `dedup_key` is naturally stable regardless (the event's own `id` doesn't change), but a fuzzy item like "checkup due" has no natural id — the model was inventing a new plausible-sounding key from scratch on every run, so `was_recently_sent(new_key, ...)` never matched anything, since it was never the *same* key twice.
+
+This directly undermines the feature's core safety promise (never spam), specifically for the exact case — fuzzy, wiki-derived patterns — that motivated using one LLM-driven detection path instead of a purely deterministic one in the first place. Not a security vulnerability, but a High-severity functional break: a user enabling this feature for the "checkup" use case would have gotten repeated, not deduped, notifications.
+
+**Fix applied**: `notification_store.get_recent(days)` (new) returns every notification proposed in the cooldown window regardless of status; `run_proactive_check`'s prompt (not a tool call — same approach already used for the wiki manifest in `_system_prompt()`) now lists each one's `dedup_key`/`message`/`status` directly, with an explicit instruction to reuse a listed key when re-flagging the same underlying thing. Added `test_run_proactive_check_surfaces_prior_dedup_keys_in_the_prompt` (asserts a previously-sent key and message actually appear in the built prompt) and three `test_notification_store.py` tests for `get_recent` (any-status inclusion, most-recent-first ordering, window exclusion, empty case).
+
+No other High or Medium findings. **Verdict: PASS.**
 
 ## Lifecycle Status
 

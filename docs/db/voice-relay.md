@@ -58,6 +58,7 @@ CREATE TABLE notifications (
 - `id` is the primary key, not `dedup_key` — the same `dedup_key` can produce multiple rows over time (a fuzzy item re-proposed after its cooldown elapses is a new row, not an update to the old one).
 - Every row starts `status='proposed'`, written only by the `propose_notification` MCP tool during the daily scan. `app/proactive.py`'s gate is the only code that ever transitions a row to `sent`/`deferred`/`suppressed` — the model that created the row has no ability to change its own status.
 - Dedup query (`was_recently_sent`): the most recent `status='sent'` row for a `dedup_key`, compared against `PROACTIVE_COOLDOWN_DAYS`. Rate-limit query (`sent_count_last_24h`): count of `status='sent'` rows with `sent_at` in the last 24h — derived from the same table, no separate counter needed.
+- `get_recent(days)` (added after a live-verification finding, `docs/reviews/voice-relay.md`): every row of any status within the window, most recent first — this isn't used for gating, it's fed straight into `run_proactive_check`'s own prompt so the model has visibility into `dedup_key`s it used on prior runs (a non-resumed invocation otherwise has none) and can reuse one instead of drifting to a new key for the same underlying item every time.
 - No TTL/cleanup job — this is meant to accumulate as a durable log, unlike `sessions.db`.
 
 ## Lifecycle Status

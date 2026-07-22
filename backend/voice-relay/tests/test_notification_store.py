@@ -77,6 +77,35 @@ def test_deferred_and_suppressed_do_not_count_as_sent():
     assert notification_store.sent_count_last_24h() == 0
 
 
+def test_get_recent_includes_any_status_most_recent_first():
+    notification_store.record_proposal("older", "first")
+    proposals = notification_store.get_proposals_since(EPOCH)
+    notification_store.mark_status(proposals[0]["id"], "sent")
+    notification_store.record_proposal("newer", "second")
+
+    recent = notification_store.get_recent(days=30)
+
+    assert [r["dedup_key"] for r in recent] == ["newer", "older"]
+    assert recent[1]["status"] == "sent"
+
+
+def test_get_recent_excludes_entries_outside_the_window():
+    notification_store.record_proposal("old-thing", "msg")
+    row_id = notification_store.get_proposals_since(EPOCH)[0]["id"]
+
+    conn = notification_store._connect()
+    old = (datetime.now(timezone.utc) - timedelta(days=45)).isoformat()
+    conn.execute("UPDATE notifications SET proposed_at = ? WHERE id = ?", (old, row_id))
+    conn.commit()
+    conn.close()
+
+    assert notification_store.get_recent(days=30) == []
+
+
+def test_get_recent_empty_when_nothing_proposed():
+    assert notification_store.get_recent(days=30) == []
+
+
 def test_sent_count_last_24h_only_counts_recent_sends():
     notification_store.record_proposal("a", "msg")
     proposals = notification_store.get_proposals_since(EPOCH)
