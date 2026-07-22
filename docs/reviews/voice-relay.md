@@ -132,6 +132,8 @@ This directly undermines the feature's core safety promise (never spam), specifi
 
 **Fix applied**: `notification_store.get_recent(days)` (new) returns every notification proposed in the cooldown window regardless of status; `run_proactive_check`'s prompt (not a tool call — same approach already used for the wiki manifest in `_system_prompt()`) now lists each one's `dedup_key`/`message`/`status` directly, with an explicit instruction to reuse a listed key when re-flagging the same underlying thing. Added `test_run_proactive_check_surfaces_prior_dedup_keys_in_the_prompt` (asserts a previously-sent key and message actually appear in the built prompt) and three `test_notification_store.py` tests for `get_recent` (any-status inclusion, most-recent-first ordering, window exclusion, empty case).
 
+**Re-verified live, post-fix**: a subsequent scan against the real deployment, with an already-sent item (a Calendar-derived reminder) still on the calendar, correctly reused the prior context and reported no new action item for it — no duplicate send. Confirms the fix closes the gap for real, not just under the unit tests.
+
 No other High or Medium findings. **Verdict: PASS.**
 
 ## Lifecycle Status
