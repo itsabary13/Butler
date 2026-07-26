@@ -82,7 +82,7 @@ RELAY_DOMAIN=jarvis.<your-domain>
 
 - Telegram values, Google OAuth values: same as documented in `.env.example` and `README.md`.
 - `CLAUDE_CODE_OAUTH_TOKEN`: generate this by installing the `claude` CLI **locally on your own machine** (`npm install -g @anthropic-ai/claude-code`), logging in with your Claude.ai account, then running `claude setup-token` (it needs a browser for the login/consent screen) — paste the printed token into the VPS's `.env`, not run the command on the VPS itself. This bills against your Claude Pro/Max subscription's usage allowance, not a separate pay-per-token API key (`docs/architecture/voice-relay.md`'s v2 addendum).
-- `GOOGLE_OAUTH_REFRESH_TOKEN`: generate this by running `scripts/google_oauth_setup.py` **locally on your own machine** (it needs a browser for the consent screen) — then paste the resulting refresh token into the VPS's `.env`, not run the script on the VPS itself.
+- `GOOGLE_OAUTH_REFRESH_TOKEN`: generate this by running `scripts/google_oauth_setup.py` **locally on your own machine** (it needs a browser for the consent screen) — then paste the resulting refresh token into the VPS's `.env`, not run the script on the VPS itself. As of v1.7 this one token covers both Calendar (`calendar.events`) and Gmail (`gmail.modify`) — if you set this up before Gmail access existed, see step 11 below to rotate it.
 - `PIPER_VOICE_MODEL_PATH`: leave as the default (`models/en_US-lessac-medium.onnx`) — the Dockerfile downloads this voice at image build time.
 
 ## 6. DNS
@@ -132,6 +132,19 @@ Ships disabled (`PROACTIVE_ENABLED=false`) — the daily scan (`docs/architectur
    ```
 5. Confirm exactly one Telegram message arrives for the item you set up. Run the same command again immediately — confirm nothing sends a second time (dedup working).
 6. The next morning, check `docker compose logs` around `PROACTIVE_HOUR_LOCAL` to confirm the scheduled job actually fired on its own, not just via the manual trigger above.
+
+## 11. (If upgrading from before v1.7) Rotate the OAuth token to add Gmail access
+
+`GOOGLE_OAUTH_REFRESH_TOKEN` only covers the scopes granted at the moment you generated it. If your `.env` was set up before v1.7 (Calendar-only scope), Gmail-dependent tools (`list_recent_emails`, `get_email_body`, `mark_email_read`, `apply_email_label`) will fail with a permissions error until you re-consent — Calendar keeps working fine on the old token in the meantime.
+
+1. In the Google Cloud project you already created for Calendar (`docs/architecture/voice-relay.md`'s v1 addendum), enable the **Gmail API** and add `https://www.googleapis.com/auth/gmail.modify` to the OAuth consent screen's scope list, alongside the existing `calendar.events` scope.
+2. Re-run `scripts/google_oauth_setup.py` **locally on your own machine** (same one-time, browser-required step as the original setup) — it now requests both scopes together and prints a single new refresh token covering both.
+3. Replace `GOOGLE_OAUTH_REFRESH_TOKEN` in the VPS's `.env` with the new value, then `docker compose up -d` (env-only change — no `--build` needed).
+4. Verify both still work: create a test calendar event via Telegram (confirms Calendar wasn't broken by the rotation), then:
+   ```bash
+   docker compose exec voice-relay python -c "from app.tools.email_tools import list_recent_emails; print(list_recent_emails(max_results=5))"
+   ```
+   Confirm real results come back, then try it end to end over Telegram: "what's on my calendar this week", "any recent emails from X", "mark that email read", "label that important."
 
 ## Updating the deployment later
 

@@ -21,6 +21,10 @@ Telegram's webhook target — receives every update sent to the bot. Handles fou
 
 The daily scan (`app/proactive.py`) is triggered by an in-process `AsyncIOScheduler` timer, not a request — deliberately no new route. Its whole effect is "message the user unprompted," so unlike everything else in this file, that trigger is never network-reachable at all; there's nothing here for this section to document beyond confirming the absence. Manual testing invokes it directly in-process (`docker compose exec voice-relay python -c "..."`, see `DEPLOY.md`), not over HTTP.
 
+## Calendar viewing + Gmail access (v1.7 addendum) — no new HTTP surface
+
+Same as v1.6's addendum above: `list_upcoming_events`/`list_recent_emails`/`get_email_body`/`mark_email_read`/`apply_email_label` are all MCP tools reachable only from within a `claude -p` conversation turn — none is a new route, none is network-reachable independent of the existing webhook. Nothing here to document beyond confirming the absence, same reasoning as the proactive scan above.
+
 ## Explicitly out of scope
 
 Any endpoint for a different transport (a phone-call webhook, a web UI, a WhatsApp webhook) — Telegram is the only transport for v1. No authenticated end-user-facing API beyond the webhook itself (no JWT/OAuth token issuance) — single-user, allowlist-based, per `docs/architecture/voice-relay.md`. No HTTP-triggerable endpoint for the proactive scan, ever (see above) — an outbound-messaging trigger being network-reachable is a real risk this design avoids entirely rather than authenticating.

@@ -184,6 +184,29 @@ def test_run_proactive_check_falls_back_to_message_on_failure(monkeypatch):
     assert "scan failed" in summary.lower()
 
 
+def test_allowed_tools_includes_calendar_viewing_and_read_only_email_tools():
+    # Closed a pre-existing gap (list_upcoming_events was proactive-scan-only)
+    # and added Gmail access — read/mark-read/label only, never send/reply/delete.
+    for tool in (
+        "mcp__butler__list_upcoming_events",
+        "mcp__butler__list_recent_emails",
+        "mcp__butler__get_email_body",
+        "mcp__butler__mark_email_read",
+        "mcp__butler__apply_email_label",
+    ):
+        assert tool in claude_code_client.ALLOWED_TOOLS
+    for disallowed in ("send_email", "reply_email", "delete_email", "trash_email"):
+        assert not any(disallowed in tool for tool in claude_code_client.ALLOWED_TOOLS)
+
+
+def test_system_prompt_warns_against_acting_on_email_content():
+    # Email is untrusted content from arbitrary senders, not user instructions
+    # — the model must never call a mutating tool because an email asked it to.
+    prompt = claude_code_client._system_prompt()
+    assert "untrusted" in prompt.lower()
+    assert "email" in prompt.lower()
+
+
 def test_run_proactive_check_surfaces_prior_dedup_keys_in_the_prompt(monkeypatch):
     # Regression: a fuzzy/wiki-derived item (no natural stable id, unlike a
     # Calendar event) was drifting to a different dedup_key every run,

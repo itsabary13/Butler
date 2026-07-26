@@ -1,14 +1,14 @@
-"""One-time, interactive Google Calendar OAuth setup. Run this manually
-once, never as part of the running service, never automated.
+"""One-time, interactive Google Calendar + Gmail OAuth setup. Run this
+manually once, never as part of the running service, never automated.
 
 Before running:
-1. Create a Google Cloud project, enable the Calendar API.
-2. Configure the OAuth consent screen (External, scope: calendar.events
-   only). IMPORTANT: set publishing status to "In production", not
-   "Testing" — testing-mode refresh tokens silently expire after 7 days,
-   which would quietly break calendar creation a week in with no obvious
-   error. You'll see an "unverified app" warning during consent below;
-   that's expected for a personal single-user app and safe to click
+1. Create a Google Cloud project, enable the Calendar API and the Gmail API.
+2. Configure the OAuth consent screen (External, scopes: calendar.events
+   and gmail.modify). IMPORTANT: set publishing status to "In production",
+   not "Testing" — testing-mode refresh tokens silently expire after 7
+   days, which would quietly break calendar/email access a week in with
+   no obvious error. You'll see an "unverified app" warning during consent
+   below; that's expected for a personal single-user app and safe to click
    through.
 3. Create an OAuth Client ID of type "Desktop app". Note the client ID
    and client secret.
@@ -20,6 +20,13 @@ Prints the resulting refresh token — paste it into .env as
 GOOGLE_OAUTH_REFRESH_TOKEN. This script is never run as part of the
 request path; the running service only ever uses the refresh token to
 mint short-lived access tokens.
+
+Re-run this (and replace GOOGLE_OAUTH_REFRESH_TOKEN) any time SCOPES
+changes — a refresh token only ever covers the scopes granted at the
+moment of consent, so adding gmail.modify here later means the *existing*
+Calendar-only token silently can't call Gmail until it's rotated. Existing
+Calendar functionality keeps working right up until the token is actually
+replaced in .env.
 """
 
 import os
@@ -27,7 +34,10 @@ import sys
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
+SCOPES = [
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/gmail.modify",
+]
 
 
 def main() -> int:
