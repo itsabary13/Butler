@@ -139,21 +139,20 @@ def save_memory(slug: str, title: str, content: str, tag: Optional[str] = None) 
     return {"action": "created", "slug": slug}
 
 
-def append_reminder(rule: str, description: str) -> dict:
-    """Appends one line to the reserved reminders.md page — accumulates,
-    never replaced (docs/domain/memory-module.md's v1.4 note)."""
-    slug = "reminders"
+def _append_to_reserved_page(slug: str, default_title: str, line: str) -> dict:
+    """Shared logic for a reserved, accumulate-never-replace wiki page
+    (reminders.md, subscriptions.md) — appends one line, creating the page
+    on first use."""
     path = wiki_dir() / f"{slug}.md"
     now = now_iso()
-    line = f"- {rule}: {description}"
     if path.exists():
         frontmatter, body = _parse_page(path)
         if frontmatter is None:
-            raise ValueError("reminders.md has unparseable frontmatter")
+            raise ValueError(f"{slug}.md has unparseable frontmatter")
         new_body = body.rstrip("\n") + "\n" + line
         _write_page(
             slug=slug,
-            title=frontmatter.get("title", "Reminders"),
+            title=frontmatter.get("title", default_title),
             content=new_body,
             tag=None,
             created_at=frontmatter.get("created_at", now),
@@ -161,5 +160,21 @@ def append_reminder(rule: str, description: str) -> dict:
         )
         return {"action": "appended"}
     wiki_dir().mkdir(parents=True, exist_ok=True)
-    _write_page(slug=slug, title="Reminders", content=line, tag=None, created_at=now, updated_at=now)
+    _write_page(slug=slug, title=default_title, content=line, tag=None, created_at=now, updated_at=now)
     return {"action": "created"}
+
+
+def append_reminder(rule: str, description: str) -> dict:
+    """Appends one line to the reserved reminders.md page — accumulates,
+    never replaced (docs/domain/memory-module.md's v1.4 note)."""
+    return _append_to_reserved_page("reminders", "Reminders", f"- {rule}: {description}")
+
+
+def add_subscription(name: str, amount: str, renewal_rule: str) -> dict:
+    """Appends one line to the reserved subscriptions.md page — a recurring
+    cost (subscription, membership) with a renewal date/cycle, distinct
+    from append_reminder's action-item framing. Accumulates, never
+    replaced, same as reminders.md (v1.8 addendum). renewal_rule is
+    freeform text (e.g. "on the 5th of each month"), same no-fixed-grammar
+    precedent reminders.md already set."""
+    return _append_to_reserved_page("subscriptions", "Subscriptions", f"- {name}: {amount}, renews {renewal_rule}")

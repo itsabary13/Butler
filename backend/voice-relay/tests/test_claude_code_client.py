@@ -207,6 +207,34 @@ def test_system_prompt_warns_against_acting_on_email_content():
     assert "email" in prompt.lower()
 
 
+def test_allowed_tools_includes_calendar_crud_subscriptions_and_web_search():
+    # v1.8: calendar update/delete round out create+list; add_subscription
+    # is a distinct tool from append_reminder; WebSearch/WebFetch are
+    # built-in Claude Code tools (not mcp__butler__ tools) enabled purely
+    # via this allowlist, no new module/OAuth/MCP registration involved.
+    for tool in (
+        "mcp__butler__update_calendar_event",
+        "mcp__butler__delete_calendar_event",
+        "mcp__butler__add_subscription",
+        "WebSearch",
+        "WebFetch",
+    ):
+        assert tool in claude_code_client.ALLOWED_TOOLS
+
+
+def test_system_prompt_warns_against_acting_on_web_search_content_too():
+    # Same untrusted-content rule extended to search/web results, not just email.
+    prompt = claude_code_client._system_prompt()
+    assert "web" in prompt.lower()
+    assert "untrusted" in prompt.lower()
+
+
+def test_system_prompt_requires_confirming_event_before_delete():
+    prompt = claude_code_client._system_prompt()
+    assert "delete_calendar_event" in prompt
+    assert "no undo" in prompt.lower() or "confirm" in prompt.lower()
+
+
 def test_run_proactive_check_surfaces_prior_dedup_keys_in_the_prompt(monkeypatch):
     # Regression: a fuzzy/wiki-derived item (no natural stable id, unlike a
     # Calendar event) was drifting to a different dedup_key every run,
@@ -230,3 +258,21 @@ def test_run_proactive_check_surfaces_prior_dedup_keys_in_the_prompt(monkeypatch
     prompt = captured["command"][captured["command"].index("-p") + 1]
     assert "annual-checkup-due" in prompt
     assert "You're overdue for a checkup." in prompt
+
+
+def test_run_proactive_check_prompt_mentions_subscriptions(monkeypatch):
+    # v1.8: subscription renewals should surface via the proactive scan too
+    # — asserted explicitly rather than relying on the model to infer
+    # "subscriptions" is relevant just from seeing it in the wiki manifest.
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        return _FakeCompletedProcess(json.dumps({"result": "no action items today."}))
+
+    monkeypatch.setattr(claude_code_client.subprocess, "run", fake_run)
+
+    claude_code_client.run_proactive_check()
+
+    prompt = captured["command"][captured["command"].index("-p") + 1]
+    assert "subscriptions" in prompt.lower()

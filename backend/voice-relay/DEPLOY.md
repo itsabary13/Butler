@@ -153,6 +153,8 @@ cd Butler && git pull
 cd backend/voice-relay && docker compose up -d --build
 ```
 
+Calendar update/delete, web search, and subscription tracking (v1.8) need no manual step beyond this — no new OAuth scope, no new credential, no new env var. `WebSearch`/`WebFetch` are built-in Claude Code tools already covered by the existing `CLAUDE_CODE_OAUTH_TOKEN`/Pro-Max subscription; Calendar update/delete and subscription tracking reuse the exact same OAuth token and wiki storage v1.7 already set up.
+
 Session history (`data/sessions.db`), the proactive-notification dedup log (`data/notifications.db`), and the wiki/document clones (`/opt/butler-memory`, `/opt/butler-documents`) all live outside the container image, so a rebuild/redeploy doesn't lose them. The faster-whisper model is cached in the `whisper_cache` named volume for the same reason — it isn't re-downloaded on every redeploy.
 
 **Do not add `uvicorn --workers` / scale to multiple replicas of this service.** The proactive daily scan (v5 addendum) is scheduled in-process; more than one worker would run — and fire — more than one scheduler, double-sending notifications.

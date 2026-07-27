@@ -92,6 +92,43 @@ def test_append_reminder_accumulates_does_not_replace(tmp_path, monkeypatch):
     assert "- every Monday: take out the recycling bin" in page["content"]
 
 
+def test_add_subscription_creates_reserved_page(tmp_path, monkeypatch):
+    monkeypatch.setattr(wiki_tools, "wiki_dir", lambda: tmp_path)
+
+    result = wiki_tools.add_subscription("Netflix", "$15.99/month", "on the 5th of each month")
+
+    assert result == {"action": "created"}
+    page = wiki_tools.read_wiki_page("subscriptions")
+    assert page["title"] == "Subscriptions"
+    assert "- Netflix: $15.99/month, renews on the 5th of each month" in page["content"]
+
+
+def test_add_subscription_accumulates_does_not_replace(tmp_path, monkeypatch):
+    monkeypatch.setattr(wiki_tools, "wiki_dir", lambda: tmp_path)
+
+    wiki_tools.add_subscription("Netflix", "$15.99/month", "on the 5th of each month")
+    result = wiki_tools.add_subscription("Adobe", "$54.99/month", "on the 20th of each month")
+
+    assert result == {"action": "appended"}
+    page = wiki_tools.read_wiki_page("subscriptions")
+    assert "- Netflix: $15.99/month, renews on the 5th of each month" in page["content"]
+    assert "- Adobe: $54.99/month, renews on the 20th of each month" in page["content"]
+
+
+def test_reminders_and_subscriptions_are_independent_reserved_pages(tmp_path, monkeypatch):
+    # Regression guard for the _append_to_reserved_page refactor — the two
+    # reserved pages must never bleed into each other's file.
+    monkeypatch.setattr(wiki_tools, "wiki_dir", lambda: tmp_path)
+
+    wiki_tools.append_reminder("every 10th", "pay the storage unit invoice")
+    wiki_tools.add_subscription("Netflix", "$15.99/month", "on the 5th of each month")
+
+    reminders = wiki_tools.read_wiki_page("reminders")
+    subscriptions = wiki_tools.read_wiki_page("subscriptions")
+    assert "Netflix" not in reminders["content"]
+    assert "storage unit" not in subscriptions["content"]
+
+
 @pytest.mark.parametrize("malicious_slug", [
     "../../../etc/passwd",
     "..\\..\\windows\\system32\\config",

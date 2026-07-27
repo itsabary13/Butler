@@ -76,6 +76,24 @@ Unlike `upcoming-events.md`, this page **accumulates** — `remember` appends a 
 
 No new file format — when `remember` writes a `reminders.md` line, it also calls `create_event` (primary calendar) with a matching `recurrenceData` RRULE (e.g. `every 10th` -> `RRULE:FREQ=MONTHLY;BYMONTHDAY=10`), an all-day event, and the reminder's description as the event summary. This is what the daily proactive-digest routine actually reads (via the native Google Calendar connector) — `reminders.md` remains the private record for `recall`, but isn't itself read by the routine. Nothing reminder-related is ever written anywhere public.
 
+## Subscriptions page (v1.8, voice-relay only)
+
+`subscriptions.md` (slug `subscriptions`, fixed) — a second reserved, accumulate-never-replace page, same shape as `reminders.md`: one line per subscription in `content`, format `- <name>: <amount>, renews <renewal-rule>`, e.g.:
+
+```markdown
+---
+slug: subscriptions
+title: Subscriptions
+created_at: 2026-07-27T09:00:00Z
+updated_at: 2026-07-27T09:00:00Z
+---
+
+- Netflix: $15.99/month, renews on the 5th of each month
+- Adobe: $54.99/month, renews on the 20th of each month
+```
+
+`renewal-rule` is deliberately freeform text, same no-fixed-grammar precedent `reminders.md` already set, rather than a parsed schedule — this project has no structured-schedule format anywhere else and this page doesn't invent one. Currently written only by `backend/voice-relay/app/tools/wiki_tools.py`'s `add_subscription` (`_append_to_reserved_page`, shared with `append_reminder`) — unlike `reminders.md`, there is no equivalent `remember`-skill capability yet, so this page only ever gets populated via voice-relay's Telegram interface, not the interactive Claude Code skills. A query like "how much do I spend on subscriptions monthly" has no separate aggregation tool — it's answered by reading this page and reasoning over the lines, the same way `recall` answers everything else.
+
 ## Lifecycle Status
 
 See `specs/epics/memory-module.md` — this stage is checked off with this file as its artifact. (v1.1 update: added the optional `tag` field. v1.3: added the reserved calendar sync page. v1.4: added the reserved reminders page.)

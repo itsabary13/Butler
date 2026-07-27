@@ -54,6 +54,10 @@ A second reserved `WikiPage` — slug `reminders` — holds structured, date-tri
 
 Not a new domain entity — when `remember` writes a line to `reminders.md`, it also creates a **recurring Google Calendar event** (via `create_event`'s `recurrenceData`/RRULE support) with the same date/recurrence rule, on the user's primary calendar. `reminders.md` stays the durable, full-detail private record (used by `recall`); the Calendar event is what lets the daily proactive-digest routine (`docs/workflow.md`) pick up new reminders automatically, since Calendar is a native routine connector — no private-repo or secret access needed, and nothing about the reminder is ever written anywhere public. (An earlier design considered a sanitized public index instead; rejected in favor of this since it needed no public exposure at all.)
 
+## Note on the subscriptions page (v1.8, voice-relay only, third exception to the merge rule)
+
+A third reserved `WikiPage` — slug `subscriptions` — same shape as `reminders`: a structured, accumulate-only list (one line per subscription: `- <name>: <amount>, renews <renewal-rule>`), not merged prose. Recurring costs rather than date-triggered action items, so it's a distinct page from `reminders` even though both are structured lists edited the same way. Currently populated only via voice-relay's `add_subscription` — there's no `remember`-skill equivalent yet, so this entity doesn't (yet) exist from the interactive Claude Code side, only the Telegram one.
+
 ## Note on deferred capabilities
 
 The epic still defers "Link related memories" as a standalone user-facing capability (see `specs/epics/memory-module.md`'s out-of-scope list) — the `links` relationship above already exists in v1 as internal domain plumbing (it's what lets the save flow avoid creating duplicate pages, FR-2 of `save-memory.md`, and lets retrieval follow connected context, FR-2 of `retrieve-memory.md`). A future epic implementing "Link related memories" as an explicit feature should **extend this existing relationship** rather than introduce a second, competing link mechanism.

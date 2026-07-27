@@ -36,6 +36,12 @@ def append_reminder(rule: str, description: str) -> dict:
 
 
 @mcp.tool()
+def add_subscription(name: str, amount: str, renewal_rule: str) -> dict:
+    """Record a recurring cost (a subscription or membership) with its renewal date/cycle — e.g. name="Netflix", amount="$15.99/month", renewal_rule="on the 5th of each month". Distinct from append_reminder: this is a recurring cost to track, not a one-off action item. To answer "what am I paying for X" or "how much do I spend on subscriptions", read the subscriptions page yourself and reason over it — there is no separate query tool."""
+    return wiki_tools.add_subscription(name, amount, renewal_rule)
+
+
+@mcp.tool()
 def create_calendar_event(
     summary: str,
     start_iso: str,
@@ -63,6 +69,25 @@ def categorize_document(slug: str, title: str, category: Optional[str] = None) -
 def list_upcoming_events(days_ahead: int = 7) -> list:
     """List the user's real Google Calendar events between now and days_ahead from now (read-only)."""
     return calendar_tools.list_upcoming_events(days_ahead)
+
+
+@mcp.tool()
+def update_calendar_event(
+    event_id: str,
+    summary: Optional[str] = None,
+    start_iso: Optional[str] = None,
+    end_iso: Optional[str] = None,
+    all_day: Optional[bool] = None,
+    recurrence_rule: Optional[str] = None,
+) -> dict:
+    """Change an existing Google Calendar event. event_id must be one you already have from a prior list_upcoming_events call in this conversation — if you don't have it, call list_upcoming_events first to find the right event; if more than one event plausibly matches what the user described, ask which one rather than guessing. Only pass the fields that are actually changing — anything left as None stays as it was."""
+    return calendar_tools.update_calendar_event(event_id, summary, start_iso, end_iso, all_day, recurrence_rule)
+
+
+@mcp.tool()
+def delete_calendar_event(event_id: str) -> dict:
+    """Permanently delete an existing Google Calendar event — there is no undo. event_id must be one you already have from a prior list_upcoming_events call; if it's at all ambiguous which event the user means, ask and confirm the event's summary/time back to them BEFORE calling this, not after."""
+    return calendar_tools.delete_calendar_event(event_id)
 
 
 @mcp.tool()
