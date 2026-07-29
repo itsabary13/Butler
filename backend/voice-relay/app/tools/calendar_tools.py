@@ -8,6 +8,12 @@ delete_calendar_event (v1.8 addendum) round out create+list into full
 CRUD — deferred from earlier passes (specs/stories/voice-relay/
 voice-calendar-action.md, matching Memory's own precedent of not building
 update/delete speculatively) until there was an actual request for it.
+
+v1.9 fix: create/update now always pass an explicit timeZone
+(settings.local_timezone) alongside a timed dateTime — found live, this
+was previously missing, so the Calendar API fell back to interpreting the
+dateTime per the calendar's own default timezone rather than the user's,
+silently creating/moving events at the wrong absolute time.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -39,14 +45,20 @@ def create_calendar_event(
 ) -> dict:
     """start_iso/end_iso: ISO 8601 datetime (or date, if all_day) strings,
     already resolved to a concrete value by the caller — this tool never
-    guesses an ambiguous time itself (FR-4, voice-calendar-action.md)."""
+    guesses an ambiguous time itself (FR-4, voice-calendar-action.md).
+
+    A timed event always gets an explicit timeZone (settings.local_timezone)
+    alongside dateTime — v1.9 fix: without it, a naive/offset-less dateTime
+    string is ambiguous to the Calendar API (interpreted per the calendar's
+    own default timezone, not necessarily the user's), which was silently
+    creating events at the wrong absolute time."""
     body: dict = {"summary": summary}
     if all_day:
         body["start"] = {"date": start_iso}
         body["end"] = {"date": end_iso}
     else:
-        body["start"] = {"dateTime": start_iso}
-        body["end"] = {"dateTime": end_iso}
+        body["start"] = {"dateTime": start_iso, "timeZone": settings.local_timezone}
+        body["end"] = {"dateTime": end_iso, "timeZone": settings.local_timezone}
     if recurrence_rule:
         body["recurrence"] = [recurrence_rule]
 
@@ -106,9 +118,9 @@ def update_calendar_event(
     if summary is not None:
         body["summary"] = summary
     if start_iso is not None:
-        body["start"] = {"date": start_iso} if all_day else {"dateTime": start_iso}
+        body["start"] = {"date": start_iso} if all_day else {"dateTime": start_iso, "timeZone": settings.local_timezone}
     if end_iso is not None:
-        body["end"] = {"date": end_iso} if all_day else {"dateTime": end_iso}
+        body["end"] = {"date": end_iso} if all_day else {"dateTime": end_iso, "timeZone": settings.local_timezone}
     if recurrence_rule is not None:
         body["recurrence"] = [recurrence_rule]
 

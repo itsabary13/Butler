@@ -65,9 +65,30 @@ def test_create_calendar_event_timed(monkeypatch):
 
     assert events.insert_calls == [{
         "calendarId": settings.primary_calendar_id,
-        "body": {"summary": "Dentist", "start": {"dateTime": "2026-08-01T10:00:00"}, "end": {"dateTime": "2026-08-01T11:00:00"}},
+        "body": {
+            "summary": "Dentist",
+            "start": {"dateTime": "2026-08-01T10:00:00", "timeZone": settings.local_timezone},
+            "end": {"dateTime": "2026-08-01T11:00:00", "timeZone": settings.local_timezone},
+        },
     }]
     assert result == {"id": "e1", "summary": "Dentist", "start": {"dateTime": "2026-08-01T10:00:00"}, "htmlLink": "https://cal/e1"}
+
+
+def test_create_calendar_event_uses_configured_local_timezone_not_a_hardcoded_default(monkeypatch):
+    # v1.9 regression guard: a timed event with no explicit timeZone is
+    # ambiguous to the Calendar API (interpreted per the calendar's own
+    # default zone, not the user's) — this was silently creating events at
+    # the wrong absolute time. Confirms the actual configured zone is used,
+    # not a hardcoded "UTC" that would happen to match by coincidence.
+    monkeypatch.setattr(settings, "local_timezone", "Asia/Jerusalem")
+    events = _FakeEvents(insert_result={"id": "e1"})
+    monkeypatch.setattr(calendar_tools, "_calendar_client", lambda: _FakeService(events))
+
+    calendar_tools.create_calendar_event("Dentist", "2026-08-01T10:00:00", "2026-08-01T11:00:00")
+
+    body = events.insert_calls[0]["body"]
+    assert body["start"]["timeZone"] == "Asia/Jerusalem"
+    assert body["end"]["timeZone"] == "Asia/Jerusalem"
 
 
 def test_create_calendar_event_all_day_with_recurrence(monkeypatch):
@@ -126,8 +147,8 @@ def test_update_calendar_event_timed_fields_use_datetime_keys(monkeypatch):
     calendar_tools.update_calendar_event("e1", start_iso="2026-08-01T15:00:00", end_iso="2026-08-01T16:00:00")
 
     assert events.patch_calls[0]["body"] == {
-        "start": {"dateTime": "2026-08-01T15:00:00"},
-        "end": {"dateTime": "2026-08-01T16:00:00"},
+        "start": {"dateTime": "2026-08-01T15:00:00", "timeZone": settings.local_timezone},
+        "end": {"dateTime": "2026-08-01T16:00:00", "timeZone": settings.local_timezone},
     }
 
 

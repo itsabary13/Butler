@@ -24,7 +24,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.config import settings
+from app.config import local_now, settings
 from app.tools import notification_store, session_store, wiki_tools
 
 logger = logging.getLogger("voice_relay.claude_code_client")
@@ -90,12 +90,19 @@ def _system_prompt() -> str:
     ) or "(no memories saved yet)"
 
     now = datetime.now(timezone.utc).isoformat()
+    local = local_now()
+    local_str = local.strftime("%Y-%m-%d %H:%M")
 
     return f"""You are Butler, a calm, concise, helpful voice assistant. You are answering a
 voice message that was transcribed to text — keep replies short and natural to
 speak aloud, not a long written answer.
 
 Current time (UTC): {now}
+Current time where the user actually is: {local_str} ({settings.local_timezone}). Interpret
+"today"/"tomorrow"/"this evening"/a stated clock time ("3pm") according to THIS local time,
+not UTC — and when calling create_calendar_event/update_calendar_event with a specific
+clock time, pass it as a plain local wall-clock dateTime (e.g. "2026-08-01T15:00:00" for
+3pm) with no UTC conversion of your own; the tool itself attaches the correct timezone.
 
 Memory wiki manifest (topics you know something about — read a page with
 read_wiki_page before claiming to know its details; never fabricate a memory

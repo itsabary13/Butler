@@ -122,6 +122,14 @@ Added for v1.8 (`specs/epics/voice-relay.md`) — Calendar update/delete, web se
 
 No new tests needed for `WebSearch`/`WebFetch` themselves beyond the allowlist/prompt assertions above — they're Claude Code's own built-in tools with no wrapper code in this repo to test; their behavior is Claude Code's responsibility, not this project's.
 
+## v8 addendum — found live, fixed: `test_config.py` (2 tests, new), +3 existing files
+
+Found live during v1.8's rollout: proactive alerts and calendar event creation were giving wrong times. Root cause and fix are in `docs/reviews/voice-relay.md`'s High finding (same addendum) — `LOCAL_TIMEZONE` was never actually reaching the model's system prompt or the Calendar API's event body, only `app/proactive.py`'s own scheduling math.
+
+- **`test_config.py`** (2 tests, new): `test_local_now_uses_configured_timezone` — the new shared `local_now()` returns a datetime in whatever zone `settings.local_timezone` names. `test_local_now_falls_back_to_utc_for_invalid_timezone` — an invalid zone name falls back to UTC rather than raising (the exact fallback behavior `app/proactive.py`'s own pre-existing `_local_now()` already had, now centralized so both callers share one implementation).
+- **`test_calendar_tools.py`** (+1 test): `test_create_calendar_event_uses_configured_local_timezone_not_a_hardcoded_default` — monkeypatches `settings.local_timezone` to a non-default zone and confirms that's what actually reaches the `insert()` call's `timeZone` field, not a value that happened to match by coincidence. The two pre-existing timed-event tests (`test_create_calendar_event_timed`, `test_update_calendar_event_timed_fields_use_datetime_keys`) were updated to expect the new `timeZone` field in their body assertions.
+- **`test_claude_code_client.py`** (+1 test): `test_system_prompt_includes_local_time_not_just_utc` — confirms the built prompt actually names the configured timezone, not just a generic "local time" phrase that could be present without the model getting anything useful out of it.
+
 ## What's deliberately not tested
 
 - **No live provider integration test in the automated suite.** There's no `pytest` test that actually invokes the real `claude` CLI, Telegram, or Google Calendar — `app/claude_code_client.py`'s subprocess invocation, `app/tools/calendar_tools.py`, and `enrich_document`'s `Read`/vision path are exercised only by inspection and by the mocked/stubbed unit tests above within this suite. (Real end-to-end verification against live credentials did happen, manually, as Task 43 — now complete, `specs/epics/voice-relay.md`'s Status — it just isn't part of what `pytest tests/` runs.)

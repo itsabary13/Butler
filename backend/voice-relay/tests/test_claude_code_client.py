@@ -235,6 +235,20 @@ def test_system_prompt_requires_confirming_event_before_delete():
     assert "no undo" in prompt.lower() or "confirm" in prompt.lower()
 
 
+def test_system_prompt_includes_local_time_not_just_utc(monkeypatch):
+    # v1.9 fix: the model previously only ever saw "Current time (UTC)",
+    # with no way to know the user's actual local time — causing "today"/
+    # "tomorrow"/a stated clock time to be interpreted in the wrong
+    # timezone. Confirms the actual configured zone name reaches the
+    # prompt, not just a generic "local time" mention.
+    monkeypatch.setattr(claude_code_client.settings, "local_timezone", "Asia/Jerusalem")
+
+    prompt = claude_code_client._system_prompt()
+
+    assert "Current time (UTC):" in prompt
+    assert "Asia/Jerusalem" in prompt
+
+
 def test_run_proactive_check_surfaces_prior_dedup_keys_in_the_prompt(monkeypatch):
     # Regression: a fuzzy/wiki-derived item (no natural stable id, unlike a
     # Calendar event) was drifting to a different dedup_key every run,

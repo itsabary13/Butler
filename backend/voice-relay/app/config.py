@@ -4,9 +4,14 @@ Never hardcode secrets here — every value below is read from the environment,
 and .env is gitignored. See .env.example for the full list of names.
 """
 
+import logging
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger("voice_relay.config")
 
 
 class Settings(BaseSettings):
@@ -63,3 +68,22 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def local_now() -> datetime:
+    """Current time in settings.local_timezone, falling back to UTC if the
+    configured zone name is invalid. Shared by anything that needs to
+    reason in the user's own local time rather than UTC — app/proactive.py's
+    scheduling/quiet-hours math, and app/claude_code_client.py's system
+    prompt (v1.9 fix: the model previously only ever saw UTC, with no way
+    to know the user's actual local time, causing "today"/"tomorrow"/a
+    stated clock time to be interpreted in the wrong timezone). requirements.txt
+    pins the `tzdata` PyPI package specifically so this works regardless of
+    whether the base image's OS ships the IANA database (python:3.12-slim
+    doesn't by default) — zoneinfo falls back to it automatically."""
+    try:
+        tz = ZoneInfo(settings.local_timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        logger.warning("invalid LOCAL_TIMEZONE %r, falling back to UTC", settings.local_timezone)
+        tz = timezone.utc
+    return datetime.now(tz)

@@ -173,6 +173,14 @@ Reviewed the v1.8 change (`docs/architecture/voice-relay.md`'s v7 addendum): `ca
 
 No High or Medium findings. **Verdict: PASS.**
 
+### High (found live, fixed) — the model never actually knew the user's timezone
+
+Confirmed live: proactive alerts and calendar event creation were giving wrong times — a High-severity correctness bug, not a security issue, but one that directly undermines a core promise of both the calendar and proactive-notification features (an alert or a created event is useless, or actively misleading, if the time is wrong). Root cause: `LOCAL_TIMEZONE` (introduced in the v5/proactive-notifications addendum) was wired into `app/proactive.py`'s own scheduling/quiet-hours math only — nothing else in the relay ever consulted it. `_system_prompt()` told the model the current time in UTC and nothing else, giving it no way to correctly interpret "today"/"tomorrow"/a stated clock time in the user's actual frame of reference. Separately, and likely the bigger contributor: `create_calendar_event`/`update_calendar_event` never set a `timeZone` field on a timed event — per the Calendar API, an offset-less `dateTime` with no `timeZone` falls back to the *calendar's own default timezone*, not necessarily the user's, meaning events Jarvis itself created could be silently stored at the wrong absolute time regardless of anything the model did right.
+
+**Fix applied**: `app/config.py`'s new `local_now()` centralizes the `ZoneInfo`-with-UTC-fallback logic that previously lived only in `app/proactive.py` (which now imports it, rather than keeping a second copy that could drift) — `test_config.py` covers both the configured-zone and invalid-zone-falls-back-to-UTC cases directly. `_system_prompt()` now states the actual local time and zone name explicitly (`test_system_prompt_includes_local_time_not_just_utc` asserts the configured zone name reaches the built prompt, not just a generic mention) and instructs the model to hand clock times to the calendar tools as plain local wall-clock strings rather than attempting its own UTC math. `create_calendar_event`/`update_calendar_event` now always attach `timeZone: settings.local_timezone` to a timed `start`/`end` — the deterministic half of the fix, verified by `test_create_calendar_event_uses_configured_local_timezone_not_a_hardcoded_default` (monkeypatches the configured zone to something other than the default, confirms it's what's actually sent — not a hardcoded value that happened to match).
+
+No other High or Medium findings. **Verdict: PASS.**
+
 ## Lifecycle Status
 
 See `specs/epics/voice-relay.md` — this stage is checked off with this file as its artifact.

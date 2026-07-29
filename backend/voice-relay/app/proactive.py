@@ -15,26 +15,13 @@ scan can at worst fill a table Python then caps, never spam the user.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app import claude_code_client, telegram, wiki_sync
+from app.config import local_now as _local_now
 from app.config import settings
 from app.tools import notification_store, wiki_tools
 
 logger = logging.getLogger("voice_relay.proactive")
-
-
-def _local_now() -> datetime:
-    # requirements.txt pins the `tzdata` PyPI package specifically so this
-    # works regardless of whether the base image's OS ships the IANA
-    # database (python:3.12-slim doesn't by default) — zoneinfo falls back
-    # to it automatically, no code-level handling needed here.
-    try:
-        tz = ZoneInfo(settings.local_timezone)
-    except (ZoneInfoNotFoundError, ValueError):
-        logger.warning("invalid LOCAL_TIMEZONE %r, falling back to UTC", settings.local_timezone)
-        tz = timezone.utc
-    return datetime.now(tz)
 
 
 def _within_quiet_hours() -> bool:

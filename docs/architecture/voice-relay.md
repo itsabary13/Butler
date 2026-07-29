@@ -169,6 +169,15 @@ Three features from one brainstorm, shipped together since they're independent e
 
 **Deferred, not built.** A "trip assistant" idea (consolidating a trip's itinerary/bookings/insurance into one view) came out of the same brainstorm but was explicitly called a "nice to have" — not built this pass.
 
+## v8 addendum — found live, fixed: the model never knew the user's actual timezone
+
+Reported live: proactive alerts (and, it turned out, regular calendar creation) were giving event times in the wrong timezone. Root cause was upstream of any single feature — it went back to `LOCAL_TIMEZONE` (added in the v5/proactive-notifications addendum) only ever being wired into `app/proactive.py`'s own scheduling/quiet-hours math. Nothing else in the relay ever used it:
+
+- **`_system_prompt()` (`app/claude_code_client.py`) only ever showed "Current time (UTC)"** — used by both the conversational path and `run_proactive_check`. The model had no principled way to know what timezone the user is actually in, so interpreting "today"/"tomorrow"/a stated clock time, or phrasing a notification's event time back to the user, could land on the wrong hour with no way for the model to self-correct.
+- **`calendar_tools.py`'s `create_calendar_event`/`update_calendar_event` never set an event's `timeZone` field** — only `dateTime`, with no offset and no explicit zone. Per the Calendar API, an offset-less `dateTime` with no `timeZone` is interpreted according to the *calendar's own default timezone*, not necessarily the user's — meaning events Jarvis itself created could get silently stored at the wrong absolute time, independent of anything the model did right or wrong afterward. This is very likely the actual mechanism behind "wrong times," not just a phrasing issue.
+
+**Fix**: `app/config.py` gained a shared `local_now()` (the exact `ZoneInfo`-with-UTC-fallback logic `app/proactive.py` already had, now centralized so both modules use one implementation instead of two that could drift) — `proactive.py`'s own `_local_now()` now just imports it. `_system_prompt()` adds an explicit local-time line naming the configured zone and instructs the model to reason in *that* time, not UTC, and to hand clock times to the calendar tools as plain local wall-clock strings rather than attempting its own UTC conversion. `create_calendar_event`/`update_calendar_event` now always attach `timeZone: settings.local_timezone` alongside a timed `dateTime` — the deterministic half of the fix, since it no longer depends on the model getting anything right at all.
+
 ## Lifecycle Status
 
 See `specs/epics/voice-relay.md` — this stage is checked off with this file as its artifact.
