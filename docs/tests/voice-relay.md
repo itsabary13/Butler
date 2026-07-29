@@ -130,6 +130,13 @@ Found live during v1.8's rollout: proactive alerts and calendar event creation w
 - **`test_calendar_tools.py`** (+1 test): `test_create_calendar_event_uses_configured_local_timezone_not_a_hardcoded_default` — monkeypatches `settings.local_timezone` to a non-default zone and confirms that's what actually reaches the `insert()` call's `timeZone` field, not a value that happened to match by coincidence. The two pre-existing timed-event tests (`test_create_calendar_event_timed`, `test_update_calendar_event_timed_fields_use_datetime_keys`) were updated to expect the new `timeZone` field in their body assertions.
 - **`test_claude_code_client.py`** (+1 test): `test_system_prompt_includes_local_time_not_just_utc` — confirms the built prompt actually names the configured timezone, not just a generic "local time" phrase that could be present without the model getting anything useful out of it.
 
+## v9 addendum — found live, fixed: +2 `test_claude_code_client.py`
+
+Found live immediately after the v8 timezone fix, same rollout: Hebrew-language calendar events/reminders were coming back translated into English, and proactive alerts about them were too. Both fixes are prompt-only (`docs/reviews/voice-relay.md`'s Medium finding, same addendum), so these tests can only confirm the instruction text reaches the built prompt, not that the model always complies — same limitation as every other model-behavior rule tested in this file.
+
+- **`test_system_prompt_forbids_translating_content`** — confirms the conversational system prompt's anti-translation rule (including a concrete Hebrew mention) is actually present.
+- **`test_run_proactive_check_prompt_says_match_source_language`** — confirms `run_proactive_check`'s own prompt (a separate, fresh invocation with no conversational turn to mirror language from) explicitly instructs matching the source content's language rather than defaulting to English.
+
 ## What's deliberately not tested
 
 - **No live provider integration test in the automated suite.** There's no `pytest` test that actually invokes the real `claude` CLI, Telegram, or Google Calendar — `app/claude_code_client.py`'s subprocess invocation, `app/tools/calendar_tools.py`, and `enrich_document`'s `Read`/vision path are exercised only by inspection and by the mocked/stubbed unit tests above within this suite. (Real end-to-end verification against live credentials did happen, manually, as Task 43 — now complete, `specs/epics/voice-relay.md`'s Status — it just isn't part of what `pytest tests/` runs.)

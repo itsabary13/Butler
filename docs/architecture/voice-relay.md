@@ -178,6 +178,12 @@ Reported live: proactive alerts (and, it turned out, regular calendar creation) 
 
 **Fix**: `app/config.py` gained a shared `local_now()` (the exact `ZoneInfo`-with-UTC-fallback logic `app/proactive.py` already had, now centralized so both modules use one implementation instead of two that could drift) — `proactive.py`'s own `_local_now()` now just imports it. `_system_prompt()` adds an explicit local-time line naming the configured zone and instructs the model to reason in *that* time, not UTC, and to hand clock times to the calendar tools as plain local wall-clock strings rather than attempting its own UTC conversion. `create_calendar_event`/`update_calendar_event` now always attach `timeZone: settings.local_timezone` alongside a timed `dateTime` — the deterministic half of the fix, since it no longer depends on the model getting anything right at all.
 
+## v9 addendum — found live, fixed: content was getting translated instead of passed through
+
+Reported immediately after the timezone fix above, same rollout: a Hebrew calendar event/reminder was coming back in translation (English) rather than kept as Hebrew, and proactive alerts about Hebrew-language items were also written in English. Nothing in `_system_prompt()` or `run_proactive_check`'s own prompt ever said not to translate — the conversational path happens to get this right by default most of the time (the model naturally mirrors the language of the current turn's message), but has no explicit instruction guarding it, and `run_proactive_check` has no conversational turn to mirror at all (it's a fresh, non-resumed invocation on a cron schedule, with only wiki/calendar content to go on) — so there was nothing forcing either path to preserve an item's actual language rather than defaulting to English.
+
+**Fix**: `_system_prompt()`'s Rules section (`app/claude_code_client.py`) now explicitly forbids translating a calendar event summary, reminder, subscription name, or wiki content — pass it through exactly as given/found, in whatever language it's actually in. `run_proactive_check`'s prompt separately instructs that a notification's `message` text must match the language of the item it's about (the calendar event's summary or the wiki content being flagged), not default to English — the one path that genuinely had no other signal to go on.
+
 ## Lifecycle Status
 
 See `specs/epics/voice-relay.md` — this stage is checked off with this file as its artifact.

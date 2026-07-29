@@ -181,6 +181,14 @@ Confirmed live: proactive alerts and calendar event creation were giving wrong t
 
 No other High or Medium findings. **Verdict: PASS.**
 
+### Medium (found live, fixed) — content was silently translated instead of preserved
+
+Confirmed live, same rollout as the timezone fix above: a Hebrew calendar event/reminder came back translated into English rather than kept as-is, and proactive alerts about Hebrew-language items were also written in English. A correctness/UX bug, not a security issue — but a real trust problem for a bilingual (or non-English-primary) user if their own words get silently rewritten. Root cause: no rule anywhere told the model not to translate. The conversational path happens to usually get this right by mirroring the current turn's language, but has no explicit guarantee of it; `run_proactive_check` has no conversational turn to mirror from at all (a fresh, non-resumed cron invocation), so it had genuinely no signal pointing away from an English default.
+
+**Fix applied**: `_system_prompt()`'s Rules section now explicitly forbids translating a calendar event summary, reminder, subscription name, or wiki content — pass it through exactly as given/found (`test_system_prompt_forbids_translating_content` asserts the rule text, including a concrete Hebrew mention, actually reaches the built prompt). `run_proactive_check`'s prompt separately instructs the notification `message` to match the language of the item it's about rather than defaulting to English (`test_run_proactive_check_prompt_says_match_source_language` asserts this reaches the actual `-p` prompt text sent to `claude`). Both are prompt-level fixes only — as with every other model-behavior rule in this project, a unit test can confirm the instruction is present, not that the model always complies; genuine confirmation is the live-verification step in `DEPLOY.md`/manual testing, not automated coverage.
+
+No other High or Medium findings. **Verdict: PASS.**
+
 ## Lifecycle Status
 
 See `specs/epics/voice-relay.md` — this stage is checked off with this file as its artifact.

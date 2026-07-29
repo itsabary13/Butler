@@ -249,6 +249,14 @@ def test_system_prompt_includes_local_time_not_just_utc(monkeypatch):
     assert "Asia/Jerusalem" in prompt
 
 
+def test_system_prompt_forbids_translating_content():
+    # Reported live: a Hebrew calendar event/reminder was getting rendered
+    # in a different language instead of being passed through as-is.
+    prompt = claude_code_client._system_prompt().lower()
+    assert "translate" in prompt
+    assert "hebrew" in prompt
+
+
 def test_run_proactive_check_surfaces_prior_dedup_keys_in_the_prompt(monkeypatch):
     # Regression: a fuzzy/wiki-derived item (no natural stable id, unlike a
     # Calendar event) was drifting to a different dedup_key every run,
@@ -290,3 +298,23 @@ def test_run_proactive_check_prompt_mentions_subscriptions(monkeypatch):
 
     prompt = captured["command"][captured["command"].index("-p") + 1]
     assert "subscriptions" in prompt.lower()
+
+
+def test_run_proactive_check_prompt_says_match_source_language(monkeypatch):
+    # Found live: a proactive alert about a Hebrew calendar event/reminder
+    # got translated to English — this scan has no conversational history
+    # to infer a language from (a fresh, non-resumed invocation each run),
+    # so it must be told explicitly to match the source content's language.
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        return _FakeCompletedProcess(json.dumps({"result": "no action items today."}))
+
+    monkeypatch.setattr(claude_code_client.subprocess, "run", fake_run)
+
+    claude_code_client.run_proactive_check()
+
+    prompt = captured["command"][captured["command"].index("-p") + 1].lower()
+    assert "same language" in prompt
+    assert "translat" in prompt
